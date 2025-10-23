@@ -9,3 +9,7 @@ repository = "https://github.com/LGY07/neo-minecraft-server-launcher"
 license = "MIT"
 
 [dependencies]
+chrono = "0.4"
+toml = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+colored = "3.0"
