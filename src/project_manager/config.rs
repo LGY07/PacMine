@@ -23,6 +23,15 @@ pub enum JavaType {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ApiPermission {
+    Status,
+    Manage
+}
+
+
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Project {
     pub(crate) name: String,
     pub(crate) server_type: ServerType,
@@ -74,19 +83,21 @@ pub struct Backup {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Plugin {
-    name: String,
-    #[serde(default)]
-    disable: bool,
-    #[serde(default)]
-    update: bool,
+pub struct Token{
+    pub(crate) value: String,
+    pub(crate) permission:ApiPermission
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Api{
+    pub(crate) enable:bool,
+    pub(crate) listen:String,
+    pub(crate) token:Vec<Token>
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PluginManage {
     pub(crate) manage: bool,
-    #[serde(default)]
-    pub(crate) plugin: Vec<Plugin>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -95,6 +106,7 @@ pub struct Config {
     pub(crate) runtime: Runtime,
     pub(crate) backup: Backup,
     pub(crate) plugin_manage: PluginManage,
+    pub(crate) api:Api
 }
 
 impl Config {
@@ -150,19 +162,21 @@ impl Config {
             },
             plugin_manage: PluginManage {
                 manage: true,
-                plugin: vec![
-                    Plugin {
-                        name: "EssentialsX".to_string(),
-                        disable: false,
-                        update: true,
-                    },
-                    Plugin {
-                        name: "Vault".to_string(),
-                        disable: false,
-                        update: false,
-                    },
-                ],
             },
+            api:Api{
+                enable:false,
+                listen:".nmsl/socket/api.socket".to_string(),
+                token:vec![
+                    Token{
+                        value:"".to_string(),
+                        permission:ApiPermission::Manage
+                    },
+                    Token{
+                        value:"".to_string(),
+                        permission:ApiPermission::Status
+                    }
+                ]
+            }
         }
     }
 }

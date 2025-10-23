@@ -16,7 +16,7 @@ fn test_exists()->bool{
 }
 
 fn read_config()->Result<Config,NotValid>{
-    let config_path = Path::new(".config");
+    let config_path = Path::new("NMSL.toml");
 
     if !config_path.is_file() {
         return Err(NotValid::ConfigBroken)

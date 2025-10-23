@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::Path;
 use colored::Colorize;
+use uuid::Uuid;
 use crate::project_manager::Config;
-use crate::project_manager::config::{Backup, Event, Java, JavaType, Plugin, PluginManage, Project, Runtime, ServerType, Time};
+use crate::project_manager::config::{Api, ApiPermission, Backup, Event, Java, JavaType, PluginManage, Project, Runtime, ServerType, Time, Token};
 use crate::project_manager::get_info::{get_info, NotValid};
 
 struct Version {
@@ -13,7 +14,7 @@ struct Version {
 
 impl Version {
     fn from_str(s: &str) -> Result<Self, String> {
-        let parts: Vec<&str> = s.split('.').collect();
+        let parts: Vec<&str> = s.trim().split('.').collect();
 
         if parts.len() != 3 {
             return Err("The version number must be in x.x.x format".to_string());
@@ -33,11 +34,6 @@ impl Version {
     }
 }
 
-
-fn broken_config(){
-    eprintln!("{}","There are files related to NMSL in the current directory, but they may be damaged. Please check the .nmsl directory and the NMSL.toml file. You need to manually delete them to continue creating.".yellow())
-}
-
 fn get_input()->String{
         let mut input_buffer = String::new();
         print!(">");
@@ -51,7 +47,7 @@ fn get_input()->String{
 fn get_config()->Config{
 
     println!("Enter the name of this project:");
-    let project_name = get_input();
+    let project_name = get_input().trim().to_string();
 
     println!("Select the type of the server:");
     println!("1: Minecraft Server(Official)");
@@ -60,7 +56,7 @@ fn get_config()->Config{
     println!("4: SpigotMC");
     println!("5: Minecraft Server for Bedrock Edition(Official)");
     println!("0: Other Server");
-    let server_type = loop {
+    let server_type = 'out: loop {
         match get_input().trim().parse::<usize>() {
             Ok(v)=>{
                 break loop {
@@ -71,7 +67,10 @@ fn get_config()->Config{
                         4 => break ServerType::Spigot,
                         5 => break ServerType::OfficialBE,
                         0 => break ServerType::Other,
-                        _ => println!("Please select within the range.")
+                        _ => {
+                            println!("Please select within the range.");
+                            continue 'out
+                        }
                     }
                 }
             },
@@ -140,23 +139,43 @@ fn get_config()->Config{
 
     let plugin_manage = PluginManage{
         manage : true,
-        plugin:Vec::new()
+    };
+
+    let manage_token=Token{
+        value:Uuid::new_v4().to_string(),
+        permission:ApiPermission::Manage
+    };
+
+    let status_token=Token{
+        value:Uuid::new_v4().to_string(),
+        permission:ApiPermission::Status
+    };
+
+    let api = Api{
+        enable:false,
+        listen:".nmsl/socket/api.socket".to_string(),
+        token:vec![
+            manage_token,
+            status_token
+        ]
     };
 
     Config{
         project,
         runtime,
         backup,
-        plugin_manage
+        plugin_manage,
+        api
+
     }
 }
 
-fn create_project(){
+pub fn create_project(){
     match get_info() {
-        Ok(_)=>println!("{}","The project has been created!".yellow()),
+        Ok(_)=>println!("{}","The project already exists!".yellow()),
         Err(e) => {
             match e {
-                NotValid::ConfigBroken=>broken_config(),
+                NotValid::ConfigBroken=>eprintln!("{}","There are files related to NMSL in the current directory, but they may be damaged. Please check the .nmsl directory and the NMSL.toml file. You need to manually delete them to continue creating.".yellow()),
                 NotValid::NotConfigured=>{
                     let config = get_config();
                     match config.to_file(Path::new("NMSL.toml")){
@@ -167,6 +186,7 @@ fn create_project(){
                         Ok(_)=>(),
                         Err(_)=>panic!("Directory cannot be created!")
                     }
+                    println!("{}","The project has been successfully created".green())
                 }
             }
         }
