@@ -1,0 +1,11 @@
+[package]
+name = "neo-minecraft-server-launcher"
+description = "A low-overhead distributed Minecraft server management tool."
+version = "0.1.0"
+edition = "2024"
+authors = ["Tuxium <ursusfeline07@gmail.com>"]
+readme = "README.md"
+repository = "https://github.com/LGY07/neo-minecraft-server-launcher"
+license = "MIT"
+
+[dependencies]
