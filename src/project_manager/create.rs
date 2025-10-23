@@ -186,6 +186,14 @@ pub fn create_project(){
                         Ok(_)=>(),
                         Err(_)=>panic!("Directory cannot be created!")
                     }
+                    match fs::create_dir(".nmsl/cache") {
+                        Ok(_)=>(),
+                        Err(_)=>panic!("Directory cannot be created!")
+                    }
+                    match fs::create_dir(".nmsl/backup") {
+                        Ok(_)=>(),
+                        Err(_)=>panic!("Directory cannot be created!")
+                    }
                     println!("{}","The project has been successfully created".green())
                 }
             }
