@@ -7,7 +7,7 @@ use std::error::Error;
 const VERSION_API_URL: &str = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 
 /// 可选的服务端类型
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)] // 添加 Clone 和 PartialEq
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "PascalCase")]
 pub enum ServerType {
     /// 官方 Minecraft Java Edition 服务端

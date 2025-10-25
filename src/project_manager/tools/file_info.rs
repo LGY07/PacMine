@@ -162,8 +162,8 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
                 // 普通字符串值
                 let end_quote = rest[1..].find('"').expect("Problematic JSON.");
                 let version = &rest[1..1 + end_quote];
-                // 解析版本号
-                let version_info = VersionInfo::get_version_info(version, ServerType::Other)
+                // 解析版本号，默认当成 Vanilla
+                let version_info = VersionInfo::get_version_info(version, ServerType::Vanilla)
                     .map_err(|e| format!("{:?}", e))?;
                 return Ok(version_info);
             }
