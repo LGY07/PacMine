@@ -25,6 +25,8 @@ zip = "6.0"
 lazy_static = "1.5"
 regex = "1.12"
 infer = "0.19"
+simplelog = "0.12"
+log = "0.4"
 
 [profile.release]
 strip = true

@@ -5,6 +5,7 @@ use std::io::{Cursor, Error, Read};
 use std::path::PathBuf;
 use infer;
 use zip::read::{ZipArchive, ZipFile};
+use log::debug;
 
 #[derive(Debug)]
 pub struct JarInfo {
@@ -95,6 +96,7 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     // 谨慎使用 `?` `unwrap()` `expect()`，避免影响后续判断
 
     // 1.18+ 版本获取信息(读取 META-INF/versions.list)
+    debug!("analyze_je_game:  Read \"META-INF/versions.list\"");
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 判断主类格式
@@ -134,6 +136,7 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     }
 
     // 1.14+ 版本获取信息(读取 version.json)
+    debug!("analyze_je_game:  Read \"versions.json\"");
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 读取 version.json
@@ -171,6 +174,7 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     };
 
     // Paper 服务端尝试获取信息(尝试读取 patch.properties)
+    debug!("analyze_je_game:  Read \"patch.properties\"");
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 读取 patch.properties
@@ -206,6 +210,7 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     };
 
     // 其他 Vanilla 版本尝试获取信息(直接读取 MainClass 的字符串常量池)
+    debug!("analyze_je_game:  Read string constant pool of MainClass");
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 读取 MainClass

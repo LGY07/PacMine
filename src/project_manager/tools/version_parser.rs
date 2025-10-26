@@ -3,6 +3,7 @@ use regex::Regex;
 use reqwest::blocking;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
+use log::error;
 
 const VERSION_API_URL: &str = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 
@@ -142,7 +143,7 @@ impl VersionInfo {
                 ))
             }
             Err(e) => {
-                eprintln!(
+                error!(
                     "Error fetching version manifest for Java server type {:?}: {}",
                     initial_server_type, e
                 );

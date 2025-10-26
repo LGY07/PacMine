@@ -10,6 +10,7 @@ use colored::Colorize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use log::{error, info, warn};
 
 const DIR_LIST: [&str; 4] = [".nmsl", ".nmsl/cache", ".nmsl/backup", ".nmsl/runtime"];
 
@@ -19,7 +20,7 @@ pub fn create_project() {
     let config_err = match get_info() {
         // 项目已存在
         Ok(_) => {
-            println!("{}", "The project already exists!".yellow());
+            warn!("{}", "The project already exists!".yellow());
             return;
         }
         Err(e) => e,
@@ -27,7 +28,7 @@ pub fn create_project() {
 
     // 项目残留文件存在，要求手动处理
     if config_err.eq(&ConfigErr::ConfigBroken) {
-        eprintln!("{}","There are files related to NMSL in the current directory, but they may be damaged. Please check the .nmsl directory and the NMSL.toml file. You need to manually delete them to continue creating.".yellow());
+        error!("{}","There are files related to NMSL in the current directory, but they may be damaged. Please check the .nmsl directory and the NMSL.toml file. You need to manually delete them to continue creating.".yellow());
         return;
     }
 
@@ -36,18 +37,18 @@ pub fn create_project() {
     let config = if get_mime_type(&PathBuf::from("server.jar")) == "application/zip" {
         // 尝试分析 server.jar 成功则根据已有 jar 创建
         create_config_jar_file(PathBuf::from_str("server.jar").unwrap()).unwrap_or_else(|e| {
-            eprintln!("{:?}", e);
+            warn!("{:?}", e);
             create_config_empty()
         })
     } else if get_mime_type(&PathBuf::from("bedrock_server")) == "application/x-executable" {
         // 尝试分析 server 成功则根据已有二进制文件创建，否则按照空项目处理
-        println!("Bedrock Edition version is not supported for the time being!");
+        error!("Bedrock Edition version is not supported for the time being!");
         todo!()
     } else if get_mime_type(&PathBuf::from("bedrock_server.exe"))
         == "application/vnd.microsoft.portable-executable"
     {
         // 尝试分析 server.exe 成功则根据已有二进制文件创建，否则按照空项目处理
-        println!("Bedrock Edition version is not supported for the time being!");
+        error!("Bedrock Edition version is not supported for the time being!");
         todo!()
     } else {
         // 按空项目创建
@@ -64,7 +65,7 @@ pub fn create_project() {
         fs::create_dir(i).expect("Directory cannot be created!")
     }
 
-    println!("{}", "The project has been successfully created".green())
+    info!("{}", "The project has been successfully created".green())
 }
 
 /// 询问用户配置信息并创建配置文件
@@ -139,7 +140,7 @@ fn create_config_empty() -> Config {
                 }
                 Err(e) => {
                     // 重新输入
-                    eprintln!("{}", e);
+                    error!("{}", e);
                     println!("{}", "Please re-enter the version".yellow());
                     continue;
                 }
@@ -175,7 +176,7 @@ fn create_config_empty() -> Config {
                     }
                     Err(e) => {
                         // 重新输入
-                        eprintln!("{}", e);
+                        error!("{}", e);
                         println!("{}", "Please re-enter the version".yellow());
                         continue;
                     }
