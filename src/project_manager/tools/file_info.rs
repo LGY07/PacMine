@@ -3,7 +3,7 @@ use regex::Regex;
 use std::fs::File;
 use std::io::{Cursor, Error, Read};
 use std::path::PathBuf;
-use tree_magic_mini;
+use infer;
 use zip::read::{ZipArchive, ZipFile};
 
 #[derive(Debug)]
@@ -28,11 +28,10 @@ impl From<Error> for JarError {
 
 /// 根据文件路径获取 MIME 类型（路径传入 &str）
 pub fn get_mime_type(path: &PathBuf) -> String {
-    // 使用 tree_magic_mini 检测 MIME 类型
-    match tree_magic_mini::from_filepath(path) {
-        None => "unknown".to_string(),
-        Some(v) => v.to_string(),
-    }
+    // 使用 infer 检测 MIME 类型
+    infer::get_from_path(path)
+        .map_or("empty".to_string(), |mime| mime.map_or("unknown".to_string(), |mime| mime.to_string()))
+
 }
 
 /// 分析 JAR 文件，获取 Main-Class 和 Java 版本（直接 major_version - 45）
