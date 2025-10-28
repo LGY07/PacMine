@@ -2,6 +2,7 @@ use crate::project_manager::config::JavaType;
 use crate::project_manager::tools::download_files;
 use flate2::read::GzDecoder;
 use log::debug;
+use std::error::Error;
 use std::fs;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ const CACHE_DIR: &str = ".nmsl/cache/download";
 const DEFAULT_DOWNLOAD_THREAD: usize = 5;
 
 /// 自动管理 Java 的情况下，自动下载 Java
-pub fn prepare_java(edition: JavaType, version: usize) -> Result<(), String> {
+pub fn prepare_java(edition: JavaType, version: usize) -> Result<(), Box<dyn Error>> {
     debug!("Prepare Java");
     let runtime_path = PathBuf::from(format!(
         ".nmsl/runtime/java-{}-{}-{}-{}",
@@ -59,7 +60,7 @@ fn check_java(java_home: &Path) -> bool {
 }
 
 /// 下载并安装 GraalVM
-fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), String> {
+fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), Box<dyn Error>> {
     debug!("Prepare GraalVM");
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
     let url = format!(
@@ -89,7 +90,7 @@ fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), String> {
 }
 
 /// 下载并安装 OpenJDK
-fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), String> {
+fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), Box<dyn Error>> {
     debug!("Prepare OpenJDK");
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
     let url = format!(
@@ -119,7 +120,7 @@ fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), String> {
 }
 
 /// 下载并安装 OracleJDK
-fn prepare_oracle_jdk(version: usize, runtime_path: &Path) -> Result<(), String> {
+fn prepare_oracle_jdk(version: usize, runtime_path: &Path) -> Result<(), Box<dyn Error>> {
     debug!("Prepare OracleJDK");
     let extension = if cfg!(windows) { "zip" } else { "tar.gz" };
     let url = format!(
@@ -149,7 +150,7 @@ fn prepare_oracle_jdk(version: usize, runtime_path: &Path) -> Result<(), String>
 }
 
 /// SHA256 校验
-fn verify_sha256(url: &str, expected: &str) -> Result<(), String> {
+fn verify_sha256(url: &str, expected: &str) -> Result<(), Box<dyn Error>> {
     debug!("Verify the SHA256 value");
     let client = reqwest::blocking::Client::new();
     let resp = client
@@ -158,18 +159,18 @@ fn verify_sha256(url: &str, expected: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     if !resp.status().is_success() {
-        return Err(format!("Request failed: {}", resp.status()));
+        return Err(format!("Request failed: {}", resp.status()).into());
     }
 
     let remote_sha = resp.text().unwrap_or_default().trim().to_string();
     if expected != remote_sha {
-        return Err("SHA256 verification failed".to_string());
+        return Err(Box::from("SHA256 verification failed"));
     }
     Ok(())
 }
 
 /// 解压 zip 文件
-fn unzip_file(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
+fn unzip_file(zip_path: &Path, dest_dir: &Path) -> Result<(), Box<dyn Error>> {
     debug!("Unzip the ZIP file");
     let file = fs::File::open(zip_path).map_err(|e| e.to_string())?;
     let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
@@ -191,10 +192,10 @@ fn unzip_file(zip_path: &Path, dest_dir: &Path) -> Result<(), String> {
 }
 
 /// 解压 tar.gz 文件
-fn untar_gz_file(tar_gz_path: &Path, dest_dir: &Path) -> Result<(), String> {
+fn untar_gz_file(tar_gz_path: &Path, dest_dir: &Path) -> Result<(), Box<dyn Error>> {
     debug!("Unzip the tar.gz file");
     let tar_gz = fs::File::open(tar_gz_path).map_err(|e| e.to_string())?;
     let tar = GzDecoder::new(BufReader::new(tar_gz));
     let mut archive = Archive::new(tar);
-    archive.unpack(dest_dir).map_err(|e| e.to_string())
+    archive.unpack(dest_dir).map_err(Box::from)
 }

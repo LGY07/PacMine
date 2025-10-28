@@ -2,8 +2,9 @@ use crate::project_manager::tools::{ServerType, VersionInfo};
 use infer;
 use log::debug;
 use regex::Regex;
+use std::error::Error;
 use std::fs::File;
-use std::io::{Cursor, Error, Read};
+use std::io::{Cursor, Read};
 use std::path::PathBuf;
 use zip::read::{ZipArchive, ZipFile};
 
@@ -11,20 +12,6 @@ use zip::read::{ZipArchive, ZipFile};
 pub struct JarInfo {
     pub main_class: String,
     pub java_version: u16, // 映射后的 Java 版本
-}
-
-#[derive(Debug)]
-pub enum JarError {
-    NotJar,
-    NoMainClass,
-    ClassNotFound,
-    IoError(()),
-}
-
-impl From<Error> for JarError {
-    fn from(_err: Error) -> Self {
-        JarError::IoError(())
-    }
 }
 
 /// 根据文件路径获取 MIME 类型（路径传入 &str）
@@ -36,50 +23,49 @@ pub fn get_mime_type(path: &PathBuf) -> String {
 }
 
 /// 分析 JAR 文件，获取 Main-Class 和 Java 版本（直接 major_version - 45）
-pub fn analyze_jar(jar_path: &PathBuf) -> Result<JarInfo, JarError> {
+pub fn analyze_jar(jar_path: &PathBuf) -> Result<JarInfo, Box<dyn Error>> {
     // 打开文件
-    let file = File::open(jar_path).map_err(|_| JarError::NotJar)?;
+    let file = File::open(jar_path)?;
     // 读取 zip
-    let mut archive = ZipArchive::new(&file).map_err(|_| JarError::NotJar)?;
+    let mut archive = ZipArchive::new(&file)?;
 
     // 读取 META-INF/MANIFEST.MF
-    let mut manifest_file = archive
-        .by_name("META-INF/MANIFEST.MF")
-        .map_err(|_| JarError::NoMainClass)?;
+    let mut manifest_file = archive.by_name("META-INF/MANIFEST.MF")?;
     let mut manifest_content = String::new();
     manifest_file.read_to_string(&mut manifest_content)?;
 
     // 解析 Main-Class
-    let main_class = manifest_content
-        .lines()
-        .find_map(|line| {
-            if line.starts_with("Main-Class:") {
-                Some(line["Main-Class:".len()..].trim().to_string())
-            } else {
-                None
-            }
-        })
-        .ok_or(JarError::NoMainClass)?;
+    let main_class = match manifest_content.lines().find_map(|line| {
+        if line.starts_with("Main-Class:") {
+            Some(line["Main-Class:".len()..].trim().to_string())
+        } else {
+            None
+        }
+    }) {
+        None => return Err(Box::from("Not a Jar file")),
+        Some(v) => v,
+    };
 
     // 读取 zip
-    let mut archive = ZipArchive::new(&file).map_err(|_| JarError::NotJar)?;
+    let mut archive = ZipArchive::new(&file)?;
     // Main-Class 转 class 文件路径
     let class_path = format!("{}.class", main_class.replace('.', "/"));
-    let mut class_file = archive
-        .by_name(&class_path)
-        .map_err(|_| JarError::ClassNotFound)?;
+    let mut class_file = archive.by_name(&class_path)?;
     // 读取魔术字
     let mut class_header = [0u8; 8];
     class_file.read_exact(&mut class_header)?;
 
     // 检查魔术字
-    if &class_header[0..4] != &[0xCA, 0xFE, 0xBA, 0xBE] {
-        return Err(JarError::NotJar);
+    if class_header[0..4] != [0xCA, 0xFE, 0xBA, 0xBE] {
+        return Err(Box::from("Not a Jar file"));
     }
 
     // major version → Java 版本：直接减 45
     let major_version = u16::from_be_bytes([class_header[6], class_header[7]]);
-    let java_version = major_version.checked_sub(44).ok_or(JarError::NotJar)?;
+    let java_version = match major_version.checked_sub(44) {
+        None => return Err(Box::from("Not a Jar file")),
+        Some(v) => v,
+    };
 
     Ok(JarInfo {
         main_class,
@@ -88,7 +74,7 @@ pub fn analyze_jar(jar_path: &PathBuf) -> Result<JarInfo, JarError> {
 }
 
 /// 分析 server.jar 文件，尝试获得游戏版本
-pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
+pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, Box<dyn Error>> {
     // 获取 JarInfo 和读取 Zip 文件
     let info = analyze_jar(jar_path).map_err(|e| format!("{:?}", e))?;
     let file = File::open(jar_path).map_err(|e| format!("{:?}", e))?;
@@ -234,7 +220,9 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
         }
     }
 
-    Err("Version parsing failed: Version information cannot be found.".to_string())
+    Err(Box::from(
+        "Version parsing failed: Version information cannot be found.",
+    ))
 }
 
 /// 从 ZipFile 读取 .class 文件并解析字符串常量池

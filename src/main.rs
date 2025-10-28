@@ -17,6 +17,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start the server with the current configuration
+    Run {
+        /// Generate startup scripts
+        #[arg(short, long)]
+        generate: bool,
+        /// Run by the daemon process
+        #[arg(short, long)]
+        detach: bool,
+        /// Connect to the game running in the daemon
+        #[arg(short, long)]
+        attach: bool,
+    },
     /// Print the project information of the current location
     Info,
     /// Create a project in a new directory
@@ -66,6 +78,19 @@ fn main() {
     // info 子命令，查看当前项目的信息
     if let Commands::Info = &cli.command {
         print_info()
+    }
+
+    // 按当前配置启动游戏
+    if let Commands::Run {
+        generate,
+        detach,
+        attach,
+    } = &cli.command
+    {
+        match get_info() {
+            Ok(v) => todo!(),
+            Err(e) => error!("The configuration cannot be opened: {:?}", e),
+        }
     }
 
     // new 子命令，根据传入的地址创建目录并初始化项目

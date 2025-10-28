@@ -8,6 +8,7 @@ use crate::project_manager::tools::{
 };
 use colored::Colorize;
 use log::{error, info, warn};
+use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -153,7 +154,7 @@ fn create_config_empty() -> Config {
         // 确保正确设置版本
         loop {
             let input = get_input().trim().to_string(); //输入
-            if (input.is_empty() || &input == "latest") {
+            if input.is_empty() || &input == "latest" {
                 // 默认的最新版本
 
                 // version_type 默认已经为 Release
@@ -189,7 +190,7 @@ fn create_config_empty() -> Config {
 }
 
 /// 通过已有的 jar 服务端文件创建配置
-fn create_config_jar_file(server_file: PathBuf) -> Result<Config, String> {
+fn create_config_jar_file(server_file: PathBuf) -> Result<Config, Box<dyn Error>> {
     // 创建基本配置
     let mut new_config = Config::default();
 

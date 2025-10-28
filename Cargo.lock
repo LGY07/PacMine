@@ -2019,6 +2019,7 @@ dependencies = [
  "rustic_backend",
  "rustic_core",
  "serde",
+ "sha1",
  "sha2",
  "simplelog",
  "tar",
