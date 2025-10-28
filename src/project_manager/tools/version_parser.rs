@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
+use log::error;
 use regex::Regex;
 use reqwest::blocking;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
-use log::error;
 
 const VERSION_API_URL: &str = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 
@@ -207,8 +207,9 @@ impl VersionInfo {
     fn guess_version_type(version_name: &str) -> VersionType {
         match VersionInfo::validate_java_format(version_name) {
             Ok(vt) => vt,
-            Err(_) => VersionInfo::validate_bds_format(version_name)
-                .unwrap_or_else(|_| VersionType::Unknown),
+            Err(_) => {
+                VersionInfo::validate_bds_format(version_name).unwrap_or(VersionType::Unknown)
+            }
         }
     }
 

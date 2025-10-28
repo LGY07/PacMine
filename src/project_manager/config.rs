@@ -1,5 +1,7 @@
 pub(crate) use crate::project_manager::tools::{ServerType, VersionType};
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs;
 use std::path::Path;
 
@@ -180,6 +182,147 @@ impl Config {
             },
             plugin_manage: PluginManage { manage: true },
         }
+    }
+}
+
+/// 为 Config 实现 Display 特征，在打印时输出可读信息
+impl Display for Config {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let title = |name: &str| format!("\n{}", name.bold().bright_blue());
+        let key = |name: &str| format!("{:<14}", name.bright_yellow());
+
+        writeln!(
+            f,
+            "{} {}",
+            "╭─".bright_black(),
+            "Instance Configuration".bold().bright_green()
+        )?;
+
+        // === Project ===
+        writeln!(f, "{}", title("Project"))?;
+        writeln!(f, "  {} {}", key("Name:"), self.project.name)?;
+        writeln!(
+            f,
+            "  {} {:?}",
+            key("Server Type:"),
+            self.project.server_type
+        )?;
+        writeln!(f, "  {} {}", key("Version:"), self.project.version)?;
+        writeln!(
+            f,
+            "  {} {:?}",
+            key("Version Type:"),
+            self.project.version_type
+        )?;
+        writeln!(f, "  {} {}", key("Executable:"), self.project.execute)?;
+        writeln!(
+            f,
+            "  {} {}",
+            key("Created At:"),
+            self.project.birthday.format("%Y-%m-%d %H:%M:%S UTC")
+        )?;
+
+        // === Runtime ===
+        writeln!(f, "{}", title("Runtime → Java"))?;
+        writeln!(f, "  {} {:?}", key("Mode:"), self.runtime.java.mode)?;
+        writeln!(f, "  {} {:?}", key("Edition:"), self.runtime.java.edition)?;
+        writeln!(f, "  {} {}", key("Version:"), self.runtime.java.version)?;
+        writeln!(f, "  {} {:?}", key("Custom:"), self.runtime.java.custom)?;
+        writeln!(
+            f,
+            "  {} {:?}",
+            key("Arguments:"),
+            self.runtime.java.arguments
+        )?;
+        writeln!(f, "  {} {} MB", key("Xms:"), self.runtime.java.xms)?;
+        writeln!(f, "  {} {} MB", key("Xmx:"), self.runtime.java.xmx)?;
+
+        // === Backup ===
+        writeln!(f, "{}", title("Backup"))?;
+        writeln!(
+            f,
+            "  {} {}",
+            key("Enabled:"),
+            if self.backup.enable {
+                "true".bright_green()
+            } else {
+                "false".bright_red()
+            }
+        )?;
+        writeln!(
+            f,
+            "  {} {}",
+            key("World:"),
+            if self.backup.world {
+                "true".bright_green()
+            } else {
+                "false".bright_red()
+            }
+        )?;
+        writeln!(
+            f,
+            "  {} {}",
+            key("Other:"),
+            if self.backup.other {
+                "true".bright_green()
+            } else {
+                "false".bright_red()
+            }
+        )?;
+
+        if let Some(ref time) = self.backup.time {
+            writeln!(f, "  {}", "[Time Backup]".bright_cyan())?;
+            writeln!(f, "    {} {} min", key("Interval:"), time.interval)?;
+            writeln!(f, "    {} {:?}", key("Cron:"), time.cron)?;
+        }
+        if let Some(ref event) = self.backup.event {
+            writeln!(f, "  {}", "[Event Backup]".bright_cyan())?;
+            writeln!(
+                f,
+                "    {} {}",
+                key("On Start:"),
+                if event.start {
+                    "true".bright_green()
+                } else {
+                    "false".bright_red()
+                }
+            )?;
+            writeln!(
+                f,
+                "    {} {}",
+                key("On Stop:"),
+                if event.stop {
+                    "true".bright_green()
+                } else {
+                    "false".bright_red()
+                }
+            )?;
+            writeln!(
+                f,
+                "    {} {}",
+                key("On Update:"),
+                if event.update {
+                    "true".bright_green()
+                } else {
+                    "false".bright_red()
+                }
+            )?;
+        }
+
+        // === Plugin Manage ===
+        writeln!(f, "{}", title("Plugin Manage"))?;
+        writeln!(
+            f,
+            "  {} {}",
+            key("Manage:"),
+            if self.plugin_manage.manage {
+                "true".bright_green()
+            } else {
+                "false".bright_red()
+            }
+        )?;
+
+        writeln!(f, "{} {}", "╰─".bright_black(), "End of Config".dimmed())
     }
 }
 

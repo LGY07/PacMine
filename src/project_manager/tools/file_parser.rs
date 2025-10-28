@@ -1,11 +1,11 @@
 use crate::project_manager::tools::{ServerType, VersionInfo};
+use infer;
+use log::debug;
 use regex::Regex;
 use std::fs::File;
 use std::io::{Cursor, Error, Read};
 use std::path::PathBuf;
-use infer;
 use zip::read::{ZipArchive, ZipFile};
-use log::debug;
 
 #[derive(Debug)]
 pub struct JarInfo {
@@ -30,9 +30,9 @@ impl From<Error> for JarError {
 /// 根据文件路径获取 MIME 类型（路径传入 &str）
 pub fn get_mime_type(path: &PathBuf) -> String {
     // 使用 infer 检测 MIME 类型
-    infer::get_from_path(path)
-        .map_or("empty".to_string(), |mime| mime.map_or("unknown".to_string(), |mime| mime.to_string()))
-
+    infer::get_from_path(path).map_or("empty".to_string(), |mime| {
+        mime.map_or("unknown".to_string(), |mime| mime.to_string())
+    })
 }
 
 /// 分析 JAR 文件，获取 Main-Class 和 Java 版本（直接 major_version - 45）
@@ -140,37 +140,34 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 读取 version.json
-    match archive
+    if let Ok(mut file) = archive
         .by_name("version.json")
         .map_err(|e| format!("{:?}", e))
     {
-        Ok(mut file) => {
-            // 转换 version.json 为字符串
-            let mut version_json_string = String::new();
-            file.read_to_string(&mut version_json_string)
+        // 转换 version.json 为字符串
+        let mut version_json_string = String::new();
+        file.read_to_string(&mut version_json_string)
+            .map_err(|e| format!("{:?}", e))?;
+        // 从 json 获得 name 键的值
+        // 找到 "name"
+        let key = "\"name\"";
+        let start = version_json_string.find(key).expect("Problematic JSON.") + key.len();
+        // 找到冒号
+        let after_colon = version_json_string[start..]
+            .find(':')
+            .expect("Problematic JSON.");
+        let rest = &version_json_string[start + after_colon + 1..];
+        // 去掉前面的空白和引号
+        let rest = rest.trim_start();
+        if rest.starts_with('"') {
+            // 普通字符串值
+            let end_quote = rest[1..].find('"').expect("Problematic JSON.");
+            let version = &rest[1..1 + end_quote];
+            // 解析版本号，默认当成 Vanilla
+            let version_info = VersionInfo::get_version_info(version, ServerType::Vanilla)
                 .map_err(|e| format!("{:?}", e))?;
-            // 从 json 获得 name 键的值
-            // 找到 "name"
-            let key = "\"name\"";
-            let start = version_json_string.find(key).expect("Problematic JSON.") + key.len();
-            // 找到冒号
-            let after_colon = version_json_string[start..]
-                .find(':')
-                .expect("Problematic JSON.");
-            let rest = &version_json_string[start + after_colon + 1..];
-            // 去掉前面的空白和引号
-            let rest = rest.trim_start();
-            if rest.starts_with('"') {
-                // 普通字符串值
-                let end_quote = rest[1..].find('"').expect("Problematic JSON.");
-                let version = &rest[1..1 + end_quote];
-                // 解析版本号，默认当成 Vanilla
-                let version_info = VersionInfo::get_version_info(version, ServerType::Vanilla)
-                    .map_err(|e| format!("{:?}", e))?;
-                return Ok(version_info);
-            }
+            return Ok(version_info);
         }
-        Err(_) => (),
     };
 
     // Paper 服务端尝试获取信息(尝试读取 patch.properties)
@@ -178,35 +175,32 @@ pub fn analyze_je_game(jar_path: &PathBuf) -> Result<VersionInfo, String> {
     // 读取 Jar 文件
     let mut archive = ZipArchive::new(&file).map_err(|e| format!("{:?}", e))?;
     // 读取 patch.properties
-    match archive
+    if let Ok(mut file) = archive
         .by_name("patch.properties")
         .map_err(|e| format!("{:?}", e))
     {
-        Ok(mut file) => {
-            // 转换 patch.properties 为字符串
-            let mut properties_string = String::new();
-            file.read_to_string(&mut properties_string)
-                .map_err(|e| format!("{:?}", e))?;
-            // 从 ini 获取 version 键的值
-            for line in properties_string.lines() {
-                // 去掉首尾空白字符
-                let line = line.trim();
-                // 跳过空行或注释
-                if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
-                    continue;
-                }
-                // 找到 key=value 格式
-                if let Some((key, value)) = line.split_once('=') {
-                    if key.trim().eq_ignore_ascii_case("version") {
-                        // 解析版本号
-                        let version_info = VersionInfo::get_version_info(value, ServerType::Paper)
-                            .map_err(|e| format!("{:?}", e))?;
-                        return Ok(version_info);
-                    }
+        // 转换 patch.properties 为字符串
+        let mut properties_string = String::new();
+        file.read_to_string(&mut properties_string)
+            .map_err(|e| format!("{:?}", e))?;
+        // 从 ini 获取 version 键的值
+        for line in properties_string.lines() {
+            // 去掉首尾空白字符
+            let line = line.trim();
+            // 跳过空行或注释
+            if line.is_empty() || line.starts_with('#') || line.starts_with(';') {
+                continue;
+            }
+            // 找到 key=value 格式
+            if let Some((key, value)) = line.split_once('=') {
+                if let "version" = key.trim() {
+                    // 解析版本号
+                    let version_info = VersionInfo::get_version_info(value, ServerType::Paper)
+                        .map_err(|e| format!("{:?}", e))?;
+                    return Ok(version_info);
                 }
             }
         }
-        Err(_) => (),
     };
 
     // 其他 Vanilla 版本尝试获取信息(直接读取 MainClass 的字符串常量池)
@@ -271,21 +265,21 @@ fn parse_class_strings_from_zip(file: &mut ZipFile<&File>) -> Vec<String> {
     let mut c = Cursor::new(data);
 
     // 跳过魔数和版本号
-    let _magic = read_u4(&mut c).unwrap_or_else(|| 0);
-    let _minor = read_u2(&mut c).unwrap_or_else(|| 0);
-    let _major = read_u2(&mut c).unwrap_or_else(|| 0);
+    let _magic = read_u4(&mut c).unwrap_or(0);
+    let _minor = read_u2(&mut c).unwrap_or(0);
+    let _major = read_u2(&mut c).unwrap_or(0);
 
     // 常量池数量
-    let cp_count = read_u2(&mut c).unwrap_or_else(|| 0);
+    let cp_count = read_u2(&mut c).unwrap_or(0);
     let mut strings: Vec<String> = Vec::new();
     let mut i = 1;
 
     while i < cp_count {
-        let tag = read_u1(&mut c).unwrap_or_else(|| 0);
+        let tag = read_u1(&mut c).unwrap_or(0);
         match tag {
             1 => {
                 // CONSTANT_Utf8_info
-                let len = read_u2(&mut c).unwrap_or_else(|| 0) as usize;
+                let len = read_u2(&mut c).unwrap_or(0) as usize;
                 let mut buf = vec![0u8; len];
                 if c.read_exact(&mut buf).is_err() {
                     break;

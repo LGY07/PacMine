@@ -2,15 +2,15 @@ use crate::project_manager::Config;
 use crate::project_manager::config::{
     Backup, Event, Java, JavaType, PluginManage, Project, Runtime, ServerType, Time,
 };
-use crate::project_manager::get_info::{ConfigErr, get_info};
+use crate::project_manager::info::{ConfigErr, get_info};
 use crate::project_manager::tools::{
     JarInfo, VersionInfo, VersionType, analyze_jar, analyze_je_game, get_mime_type,
 };
 use colored::Colorize;
+use log::{error, info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use log::{error, info, warn};
 
 const DIR_LIST: [&str; 4] = [".nmsl", ".nmsl/cache", ".nmsl/backup", ".nmsl/runtime"];
 
@@ -153,7 +153,7 @@ fn create_config_empty() -> Config {
         // 确保正确设置版本
         loop {
             let input = get_input().trim().to_string(); //输入
-            if (&input == "" || &input == "latest") {
+            if (input.is_empty() || &input == "latest") {
                 // 默认的最新版本
 
                 // version_type 默认已经为 Release

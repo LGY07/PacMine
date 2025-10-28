@@ -1,27 +1,23 @@
 use crate::project_manager::Config;
+use log::error;
 use std::path::Path;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum ConfigErr {
     NotConfigured,
     ConfigBroken,
 }
 
 fn test_exists() -> bool {
-    if Path::new("NMSL.toml").exists() {
-        return true;
-    } else if Path::new(".nmsl").exists() {
-        return true;
-    }
-    false
+    // NMSL.toml 或者 .nmsl 存在
+    Path::new("NMSL.toml").exists() || Path::new(".nmsl").exists()
 }
 
 fn read_config() -> Result<Config, ConfigErr> {
     let config_path = Path::new("NMSL.toml");
 
-    if !config_path.is_file() {
-        return Err(ConfigErr::ConfigBroken);
-    } else if !Path::new(".nmsl").is_dir() {
+    // 检查目录/文件是否正确
+    if !config_path.is_file() || !Path::new(".nmsl").is_dir() {
         return Err(ConfigErr::ConfigBroken);
     }
 
@@ -37,4 +33,15 @@ pub fn get_info() -> Result<Config, ConfigErr> {
     }
 
     read_config()
+}
+
+pub fn print_info() {
+    match get_info() {
+        Ok(v) => {
+            println!("{}", v)
+        }
+        Err(e) => {
+            error!("{:?}", e)
+        }
+    }
 }
