@@ -132,19 +132,23 @@ pub struct PluginManage {
     pub(crate) manage: bool,
 }
 
+/// 为 Config 定义方法
 impl Config {
+    /// 从文件读取 TOML
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
         Ok(config)
     }
 
+    /// 将 TOML 写入到文件
     pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         let content = toml::to_string_pretty(self)?;
         fs::write(path, content)?;
         Ok(())
     }
 
+    /// 创建默认配置
     pub fn default() -> Config {
         Config {
             project: Project {
@@ -323,6 +327,18 @@ impl Display for Config {
         )?;
 
         writeln!(f, "{} {}", "╰─".bright_black(), "End of Config".dimmed())
+    }
+}
+
+/// 为 JavaType 实现 Display 特征，用于文件命名，使用全小写
+impl Display for JavaType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            JavaType::GraalVM => write!(f, "graalvm"),
+            JavaType::OpenJDK => write!(f, "openjdk"),
+            JavaType::OracleJDK => write!(f, "oraclejdk"),
+            JavaType::Custom => write!(f, "custom"),
+        }
     }
 }
 
