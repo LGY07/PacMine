@@ -1,7 +1,7 @@
 use anyhow::Error;
 use futures::future::join_all;
-use indicatif::{HumanDuration, MultiProgress, ProgressBar, ProgressStyle};
-use log::debug;
+use indicatif::{HumanDuration, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use log::{debug, info};
 use reqwest::Client;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
@@ -13,6 +13,12 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::task;
+
+const MAX_RETRIES: usize = 3; // 每个分块最大重试次数
+
+fn progress_bar_width() -> usize {
+    50 // 可根据终端宽度自适应
+}
 
 #[derive(Debug)]
 pub struct FileDownloadResult {
@@ -28,7 +34,7 @@ pub fn download_files(
     threads: usize,
 ) -> Vec<Result<FileDownloadResult, Error>> {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(async { download_files_async(urls, dir, threads).await })
+    rt.block_on(download_files_async(urls, dir, threads))
 }
 
 async fn download_files_async(
@@ -38,12 +44,10 @@ async fn download_files_async(
 ) -> Vec<Result<FileDownloadResult, Error>> {
     debug!("Download the files");
     fs::create_dir_all(dir).ok();
-    let mp = Arc::new(MultiProgress::new());
-
-    // 计算所有文件总大小
     let client = Client::builder().use_rustls_tls().build().unwrap();
-    let mut total_bytes = 0u64;
 
+    // 计算总大小
+    let mut total_bytes = 0u64;
     for url in &urls {
         if let Ok(resp) = client.head(url).send().await {
             if let Some(len) = resp.headers().get(reqwest::header::CONTENT_LENGTH) {
@@ -56,30 +60,31 @@ async fn download_files_async(
         }
     }
 
-    // 创建总体进度条
-    let total_progress = mp.add(ProgressBar::new(total_bytes));
+    let total_progress = ProgressBar::new(total_bytes);
+    total_progress.set_draw_target(ProgressDrawTarget::stdout_with_hz(3));
     total_progress.set_style(
         ProgressStyle::with_template(
-            "{msg} [{bar:40.cyan/blue}] {human_pos}/{human_len} ({percent}%) {bytes_per_sec} ETA: {eta_precise}"
-        ).unwrap()
+            &format!(
+                "{{msg}} [{{bar:{}}}] {{human_pos}}/{{human_len}} ({{percent}}%) {{bytes_per_sec}} ETA: {{eta_precise}}",
+                progress_bar_width()
+            )
+        )
+            .unwrap(),
     );
     total_progress.set_message("Total Progress");
-    total_progress.enable_steady_tick(Duration::from_millis(200));
 
     let start_time = Instant::now();
     let total_count = urls.len();
     let completed_files = Arc::new(Mutex::new(0usize));
 
-    // 并发下载每个文件
     let mut handles = vec![];
     for url in urls.clone() {
         let dir = dir.to_string();
-        let mp = mp.clone();
         let total_progress = total_progress.clone();
         let completed_files = completed_files.clone();
 
         let handle = tokio::spawn(async move {
-            let res = download_single(&url, &dir, threads, mp, total_progress.clone()).await;
+            let res = download_single_with_retry(&url, &dir, threads, total_progress.clone()).await;
             let mut completed = completed_files.lock().unwrap();
             *completed += 1;
             total_progress.set_message(format!("Total Progress ({}/{})", *completed, total_count));
@@ -88,7 +93,6 @@ async fn download_files_async(
         handles.push(handle);
     }
 
-    // 等待所有任务完成
     let results = join_all(handles).await;
 
     total_progress.finish_with_message(format!(
@@ -102,16 +106,38 @@ async fn download_files_async(
         .collect()
 }
 
+// 对整个文件增加重试逻辑
+async fn download_single_with_retry(
+    url: &str,
+    dir: &str,
+    threads: usize,
+    total_progress: ProgressBar,
+) -> Result<FileDownloadResult, Error> {
+    let mut attempts = 0;
+    loop {
+        attempts += 1;
+        match download_single(url, dir, threads, total_progress.clone()).await {
+            Ok(res) => return Ok(res),
+            Err(e) => {
+                if attempts >= MAX_RETRIES {
+                    return Err(Error::msg(format!(
+                        "Failed after {} retries: {}",
+                        attempts, e
+                    )));
+                }
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+        }
+    }
+}
+
 async fn download_single(
     url: &str,
     dir: &str,
     threads: usize,
-    mp: Arc<MultiProgress>,
     total_progress: ProgressBar,
 ) -> Result<FileDownloadResult, Error> {
     let client = Client::builder().use_rustls_tls().build()?;
-
-    // 获取文件大小
     let resp = client.head(url).send().await?;
     let total_size = resp
         .headers()
@@ -122,8 +148,6 @@ async fn download_single(
 
     let filename = url.split('/').last().unwrap_or("file");
     let filepath = Path::new(dir).join(filename);
-
-    // 创建文件用于分块写入
     if !filepath.exists() {
         File::create(&filepath)?;
     }
@@ -131,17 +155,14 @@ async fn download_single(
     let chunk_size = (total_size + threads as u64 - 1) / threads as u64;
     let file_path = Arc::new(filepath.clone());
 
-    // 创建文件进度条
-    let pb = mp.add(ProgressBar::new(total_size));
-    pb.set_style(
-        ProgressStyle::with_template(
-            "{msg} [{bar:40.cyan/blue}] {human_pos}/{human_len} ({percent}%) {bytes_per_sec} ETA: {eta_precise}"
-        )?
-    );
+    // 单文件进度条
+    let pb = ProgressBar::new(total_size);
+    pb.set_style(ProgressStyle::with_template(&format!(
+        "{{msg}} [{{bar:{}}}] {{human_pos}}/{{human_len}} ({{percent}}%)",
+        progress_bar_width()
+    ))?);
     pb.set_message(filename.to_string());
-    pb.enable_steady_tick(Duration::from_millis(200));
 
-    // 分块下载
     let mut handles = vec![];
     for i in 0..threads {
         let start = i as u64 * chunk_size;
@@ -157,28 +178,44 @@ async fn download_single(
         let total_progress = total_progress.clone();
 
         let handle = task::spawn(async move {
-            let range_header = format!("bytes={}-{}", start, end);
-            let mut resp = client
-                .get(&url)
-                .header(reqwest::header::RANGE, range_header)
-                .send()
-                .await?;
+            let mut attempt = 0;
+            loop {
+                attempt += 1;
+                let range_header = format!("bytes={}-{}", start, end);
+                let result: Result<(), Error> = async {
+                    let mut resp = client
+                        .get(&url)
+                        .header(reqwest::header::RANGE, range_header)
+                        .send()
+                        .await?;
 
-            let mut f = OpenOptions::new().write(true).open(&*file_path)?;
-            f.seek(SeekFrom::Start(start))?;
+                    let mut f = OpenOptions::new().write(true).open(&*file_path)?;
+                    f.seek(SeekFrom::Start(start))?;
 
-            while let Some(chunk) = resp.chunk().await? {
-                f.write_all(&chunk)?;
-                let len = chunk.len() as u64;
-                pb.inc(len);
-                total_progress.inc(len);
+                    while let Some(chunk) = resp.chunk().await? {
+                        f.write_all(&chunk)?;
+                        let len = chunk.len() as u64;
+                        pb.inc(len);
+                        total_progress.inc(len);
+                    }
+                    Ok(())
+                }
+                .await;
+
+                match result {
+                    Ok(_) => break,
+                    Err(e) if attempt < MAX_RETRIES => {
+                        info!("{}", e);
+                        tokio::time::sleep(Duration::from_millis(500)).await
+                    }
+                    Err(e) => return Err(e),
+                }
             }
             Ok::<(), Error>(())
         });
         handles.push(handle);
     }
 
-    // 等待所有分块完成
     for r in join_all(handles).await {
         match r {
             Ok(inner) => inner?,
@@ -188,7 +225,7 @@ async fn download_single(
 
     pb.finish_with_message(format!("{} done", filename));
 
-    // 计算 SHA256 和 SHA1
+    // 计算哈希
     let mut file = File::open(&filepath)?;
     let mut sha256 = Sha256::new();
     let mut sha1 = Sha1::new();

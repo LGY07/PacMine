@@ -66,7 +66,7 @@ enum Commands {
 fn main() {
     // 启用日志输出
     CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Debug,
+        LevelFilter::Info,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
