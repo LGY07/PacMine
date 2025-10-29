@@ -75,23 +75,20 @@ fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), Error> {
     );
     let files = files_vec
         .first()
-        .ok_or(anyhow::Error::msg("No files downloaded"))?
+        .ok_or(Error::msg("No files downloaded"))?
         .as_ref()
-        .map_err(|e| anyhow::Error::msg(format!("{:?}", e)))?;
+        .map_err(|e| Error::msg(format!("{:?}", e)))?;
 
     // 校验文件
     debug!("Verify the SHA256 value");
     let client = reqwest::blocking::Client::new();
     let resp = client.get(format!("{}.sha256", url)).send()?;
     if !resp.status().is_success() {
-        return Err(anyhow::Error::msg(format!(
-            "Request failed: {}",
-            resp.status()
-        )));
+        return Err(Error::msg(format!("Request failed: {}", resp.status())));
     }
     let remote_sha = resp.text().unwrap_or_default().trim().to_string();
     if files.sha256 != remote_sha {
-        return Err(anyhow::Error::msg("SHA256 verification failed"));
+        return Err(Error::msg("SHA256 verification failed"));
     }
     // 解压文件
     fs::create_dir_all(runtime_path)?;
@@ -105,7 +102,7 @@ fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), Error> {
     if check_java(runtime_path) {
         Ok(())
     } else {
-        Err(anyhow::Error::msg("Failed to install Runtime"))
+        Err(Error::msg("Failed to install Runtime"))
     }
 }
 
@@ -129,22 +126,19 @@ fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), Error> {
     );
     let files = files_vec
         .first()
-        .ok_or(anyhow::Error::msg("No files downloaded"))?
+        .ok_or(Error::msg("No files downloaded"))?
         .as_ref()
-        .map_err(|e| anyhow::Error::msg(format!("{:?}", e)))?;
+        .map_err(|e| Error::msg(format!("{:?}", e)))?;
     // 校验文件
     debug!("Verify the SHA256 value");
     let client = reqwest::blocking::Client::new();
     let resp = client.get(format!("{}.sha256sum.txt", url)).send()?;
     if !resp.status().is_success() {
-        return Err(anyhow::Error::msg(format!(
-            "Request failed: {}",
-            resp.status()
-        )));
+        return Err(Error::msg(format!("Request failed: {}", resp.status())));
     }
     let remote_sha = resp.text().unwrap_or_default().trim().to_string();
     if files.sha256 != remote_sha.split(' ').collect::<Vec<&str>>()[0].trim() {
-        return Err(anyhow::Error::msg("SHA256 verification failed"));
+        return Err(Error::msg("SHA256 verification failed"));
     }
     // 解压文件
     fs::create_dir_all(runtime_path)?;
@@ -158,7 +152,7 @@ fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), Error> {
     if check_java(runtime_path) {
         Ok(())
     } else {
-        Err(anyhow::Error::msg("Failed to install Runtime"))
+        Err(Error::msg("Failed to install Runtime"))
     }
 }
 
@@ -206,5 +200,5 @@ fn untar_gz_file(tar_gz_path: &Path, dest_dir: &Path) -> Result<(), Error> {
     let tar_gz = fs::File::open(tar_gz_path)?;
     let tar = GzDecoder::new(BufReader::new(tar_gz));
     let mut archive = Archive::new(tar);
-    archive.unpack(dest_dir).map_err(anyhow::Error::msg)
+    archive.unpack(dest_dir).map_err(Error::msg)
 }

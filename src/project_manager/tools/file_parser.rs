@@ -42,7 +42,7 @@ pub fn analyze_jar(jar_path: &Path) -> Result<JarInfo, Error> {
             None
         }
     }) {
-        None => return Err(anyhow::Error::msg("Not a Jar file")),
+        None => return Err(Error::msg("Not a Jar file")),
         Some(v) => v,
     };
 
@@ -57,13 +57,13 @@ pub fn analyze_jar(jar_path: &Path) -> Result<JarInfo, Error> {
 
     // 检查魔术字
     if class_header[0..4] != [0xCA, 0xFE, 0xBA, 0xBE] {
-        return Err(anyhow::Error::msg("Not a Jar file"));
+        return Err(Error::msg("Not a Jar file"));
     }
 
     // major version → Java 版本：直接减 45
     let major_version = u16::from_be_bytes([class_header[6], class_header[7]]);
     let java_version = match major_version.checked_sub(44) {
-        None => return Err(anyhow::Error::msg("Not a Jar file")),
+        None => return Err(Error::msg("Not a Jar file")),
         Some(v) => v,
     };
 
@@ -199,7 +199,7 @@ pub fn analyze_je_game(jar_path: &Path) -> Result<VersionInfo, Error> {
         }
     }
     // 创建正则表达式，假设为 x.x
-    let re = Regex::new(r"[0-9]+\.[0-9]+").unwrap();
+    let re = Regex::new(r"[0-9]+\.[0-9]+")?;
     for s in &strings {
         if let Some(m) = re.find(s) {
             // 解析版本号
@@ -208,7 +208,7 @@ pub fn analyze_je_game(jar_path: &Path) -> Result<VersionInfo, Error> {
         }
     }
 
-    Err(anyhow::Error::msg(
+    Err(Error::msg(
         "Version parsing failed: Version information cannot be found.",
     ))
 }

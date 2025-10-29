@@ -1,8 +1,7 @@
 use anyhow::Error;
 use lazy_static::lazy_static;
-use log::{debug, error};
+use log::error;
 use regex::Regex;
-use reqwest::blocking;
 use serde::{Deserialize, Serialize};
 
 const VERSION_API_URL: &str = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
@@ -103,10 +102,7 @@ impl VersionManifest {
         // 使用阻塞客户端，简单易用
         let response = reqwest::blocking::get(URL)?;
         if !response.status().is_success() {
-            return Err(anyhow::Error::msg(format!(
-                "Request failed: {}",
-                response.status()
-            )));
+            return Err(Error::msg(format!("Request failed: {}", response.status())));
         }
 
         // 直接将响应体反序列化为结构体
@@ -120,7 +116,7 @@ impl VersionManifest {
                 return Ok(i);
             }
         }
-        Err(anyhow::Error::msg("Unable to find version"))
+        Err(Error::msg("Unable to find version"))
     }
 }
 
@@ -129,10 +125,7 @@ impl ManifestVersion {
     pub fn to_download(&self) -> Result<(String, String), Error> {
         let response = reqwest::blocking::get(&self.url)?;
         if !response.status().is_success() {
-            return Err(anyhow::Error::msg(format!(
-                "Request failed: {}",
-                response.status()
-            )));
+            return Err(Error::msg(format!("Request failed: {}", response.status())));
         }
         let server_download = response.json::<VersionJson>()?;
         Ok((
@@ -224,7 +217,7 @@ impl VersionInfo {
     /// Note: 对于 OldBeta 和 OldAlpha，返回的是 API 列表中对应类型的第一个版本（即最新的）。
     pub fn get_latest_version(version_type: VersionType) -> Result<String, Error> {
         if version_type == VersionType::Unknown {
-            return Err(anyhow::Error::msg(
+            return Err(Error::msg(
                 "Cannot find the latest version for an Unknown type.",
             ));
         }
@@ -258,7 +251,7 @@ impl VersionInfo {
 
         match latest_id {
             Some(id) => Ok(id),
-            None => Err(anyhow::Error::msg(format!(
+            None => Err(Error::msg(format!(
                 "Could not find any version for type {:?} in the Mojang manifest.",
                 version_type
             ))),
@@ -288,7 +281,7 @@ impl VersionInfo {
             // 在缺乏 BDS 官方清单的情况下，假设有效格式即为 Release。
             Ok(VersionType::Release)
         } else {
-            Err(anyhow::Error::msg(format!(
+            Err(Error::msg(format!(
                 "Invalid BDS version format (expected X.Y.Z[.B]): {}",
                 version_name
             )))
@@ -317,7 +310,7 @@ impl VersionInfo {
             // 粗略判断为 OldAlpha
             Ok(VersionType::OldAlpha)
         } else {
-            Err(anyhow::Error::msg(format!(
+            Err(Error::msg(format!(
                 "Invalid JE version format (expected X.Y.Z or YYwWWa): {}",
                 version_name
             )))

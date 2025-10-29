@@ -1,9 +1,7 @@
 use crate::project_manager::tools::{
-    DEFAULT_DOWNLOAD_THREAD, DOWNLOAD_CACHE_DIR, ServerType, VersionInfo, VersionManifest,
-    download_files,
+    DEFAULT_DOWNLOAD_THREAD, DOWNLOAD_CACHE_DIR, VersionInfo, VersionManifest, download_files,
 };
 use anyhow::Error;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
@@ -23,11 +21,11 @@ pub fn install_je(version: VersionInfo) -> Result<(), Error> {
     // 校验文件
     let file = files
         .first()
-        .ok_or(anyhow::Error::msg("No files downloaded"))?
+        .ok_or(Error::msg("No files downloaded"))?
         .as_ref()
-        .map_err(|e| anyhow::Error::msg(format!("{:?}", e)))?;
+        .map_err(|e| Error::msg(format!("{:?}", e)))?;
     if file.sha1 != sha1 {
-        return Err(anyhow::Error::msg("SHA1 verification failed"));
+        return Err(Error::msg("SHA1 verification failed"));
     }
     // 清理存在的文件
     if Path::new("server.jar").exists() {

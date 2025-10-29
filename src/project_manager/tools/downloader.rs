@@ -98,7 +98,7 @@ async fn download_files_async(
 
     results
         .into_iter()
-        .map(|r| r.unwrap_or_else(|e| Err(anyhow::Error::msg(format!("Task failed: {}", e)))))
+        .map(|r| r.unwrap_or_else(|e| Err(Error::msg(format!("Task failed: {}", e)))))
         .collect()
 }
 
@@ -116,7 +116,7 @@ async fn download_single(
     let total_size = resp
         .headers()
         .get(reqwest::header::CONTENT_LENGTH)
-        .ok_or(anyhow::Error::msg("Invalid Content-Length"))?
+        .ok_or(Error::msg("Invalid Content-Length"))?
         .to_str()?
         .parse::<u64>()?;
 
@@ -136,7 +136,7 @@ async fn download_single(
     pb.set_style(
         ProgressStyle::with_template(
             "{msg} [{bar:40.cyan/blue}] {human_pos}/{human_len} ({percent}%) {bytes_per_sec} ETA: {eta_precise}"
-        ).unwrap()
+        )?
     );
     pb.set_message(filename.to_string());
     pb.enable_steady_tick(Duration::from_millis(200));
@@ -182,7 +182,7 @@ async fn download_single(
     for r in join_all(handles).await {
         match r {
             Ok(inner) => inner?,
-            Err(e) => return Err(anyhow::Error::msg(format!("Join error: {}", e))),
+            Err(e) => return Err(Error::msg(format!("Join error: {}", e))),
         }
     }
 

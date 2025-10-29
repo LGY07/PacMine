@@ -1,11 +1,7 @@
 use crate::project_manager::Config;
-use crate::project_manager::config::{
-    Backup, Event, Java, JavaType, PluginManage, Project, Runtime, ServerType, Time,
-};
+use crate::project_manager::config::ServerType;
 use crate::project_manager::info::{ConfigErr, get_info};
-use crate::project_manager::tools::{
-    JarInfo, VersionInfo, VersionType, analyze_jar, analyze_je_game, get_mime_type,
-};
+use crate::project_manager::tools::{VersionInfo, VersionType, analyze_je_game, get_mime_type};
 use anyhow::Error;
 use colored::Colorize;
 use log::{error, info, warn};
@@ -13,7 +9,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-const DIR_LIST: [&str; 4] = [".nmsl", ".nmsl/cache", ".nmsl/backup", ".nmsl/runtime"];
+const DIR_LIST: [&str; 5] = [
+    ".nmsl",
+    ".nmsl/cache",
+    ".nmsl/backup",
+    ".nmsl/runtime",
+    ".nmsl/log",
+];
 
 /// 初始化配置文件
 pub fn create_project() {

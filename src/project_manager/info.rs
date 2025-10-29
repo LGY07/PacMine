@@ -1,5 +1,4 @@
 use crate::project_manager::Config;
-use futures::future::err;
 use log::error;
 use std::path::Path;
 
