@@ -7,6 +7,7 @@ use log::{LevelFilter, error};
 use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 use std::fs;
 use std::path::PathBuf;
+use tokio::spawn;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -106,7 +107,7 @@ fn main() {
         match get_info() {
             Ok(v) => start_server(v).expect("The program exited with errors!"),
             Err(e) => error!("The configuration cannot be opened: {:?}", e),
-        }
+        };
     }
 
     // new 子命令，根据传入的地址创建目录并初始化项目

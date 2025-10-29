@@ -2,6 +2,7 @@ use crate::project_manager::tools::check_java;
 pub(crate) use crate::project_manager::tools::{ServerType, VersionType};
 use anyhow::Error;
 use colored::Colorize;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs;
@@ -343,15 +344,16 @@ impl Display for JavaType {
 
 impl Java {
     pub fn to_binary(&self) -> Result<PathBuf, Error> {
-        let runtime_path = PathBuf::from(format!(
+        let runtime_path = format!(
             ".nmsl/runtime/java-{}-{}-{}-{}",
             &self.version,
             &self.edition,
             std::env::consts::OS,
             std::env::consts::ARCH
-        ));
-        if check_java(&runtime_path) {
-            Ok(PathBuf::from(runtime_path))
+        );
+        debug!("{:?}", runtime_path);
+        if check_java(runtime_path.as_ref()) {
+            Ok(PathBuf::from(format!("{}/bin/java", runtime_path)))
         } else {
             Err(Error::msg("Java cannot be found"))
         }

@@ -1,4 +1,3 @@
-use crate::Commands;
 use crate::project_manager::Config;
 use crate::project_manager::config::{JavaMode, JavaType};
 use crate::project_manager::tools::{
@@ -6,26 +5,80 @@ use crate::project_manager::tools::{
     prepare_java,
 };
 use anyhow::Error;
-use log::debug;
+use futures::future::join_all;
+use log::{debug, info};
 use std::path::Path;
-use std::process::Command;
-use std::thread::Thread;
-use std::{fs, thread};
-use toml::Value::String;
+use std::{env, fs, io};
+use tokio::process::{ChildStderr, ChildStdin, ChildStdout, Command};
+use tokio::runtime::Runtime;
+use tokio::spawn;
+use tokio::task::JoinHandle;
 
 pub fn start_server(config: Config) -> Result<(), Error> {
     pre_run(&config)?;
+    // 创建线程池
+    let rt = Runtime::new()?;
+    // 初始化线程列表
+    let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
     // 启用备份线程
-    let backup_handle = thread::spawn(|| {});
-    // 启动服务器
-    if let ServerType::BDS = config.project.server_type {
-        // 构建启动参数
-        let command = Command::new(config.project.execute);
-    } else {
-        // 构建启动参数
-        let command = Command::new(config.runtime.java.to_binary()?);
+    if config.backup.enable {
+        info!("Backup has been enabled.");
+        handles.push(rt.spawn(async {
+            println!("Todo");
+            Ok(())
+        }));
     }
-    todo!()
+    // 启动服务器
+    handles.push(if let ServerType::BDS = config.project.server_type {
+        rt.spawn(async move {
+            // 运行基岩版服务端
+            Command::new(config.project.execute)
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()?;
+
+            Ok(())
+        })
+    } else {
+        rt.spawn(async move {
+            // 处理内存选项
+            let mut mem_options = Vec::new();
+            if config.runtime.java.xms != 0 {
+                mem_options.push(format!("-Xms {}M", config.runtime.java.xms))
+            }
+            if config.runtime.java.xmx != 0 {
+                mem_options.push(format!("-Xmx {}M", config.runtime.java.xmx))
+            }
+            // 运行 Java 版服务端
+            Command::new(config.runtime.java.to_binary()?)
+                .args(config.runtime.java.arguments)
+                .args(mem_options)
+                .arg("-jar")
+                .arg(config.project.execute)
+                .arg("-nogui")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()?;
+            Ok(())
+        })
+    });
+
+    // 运行线程
+    rt.block_on(async {
+        let results = join_all(handles).await;
+        for r in results {
+            match r {
+                Ok(Ok(())) => (),
+                Ok(Err(e)) => eprintln!("Task error: {}", e),
+                Err(e) => eprintln!("Join error: {}", e),
+            }
+        }
+        // 返回错误
+        Ok::<_, Error>(())
+    })?;
+    Ok(())
 }
 
 /// 运行前准备工作
