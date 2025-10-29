@@ -159,7 +159,7 @@ pub fn start_server(config: Config) -> Result<(), Error> {
             // 打印线程
             let print_handle = spawn(async move {
                 while let Some(line) = rx.recv().await {
-                    print!("{}", line);
+                    println!("{}", line);
                 }
             });
 

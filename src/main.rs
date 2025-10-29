@@ -131,5 +131,4 @@ fn main() {
     }
 
     // TODO:运行清理
-    std::io::stdout().flush().unwrap()
 }
