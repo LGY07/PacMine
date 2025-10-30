@@ -33,6 +33,7 @@ tar = "0.4"
 sha1 = "0.10"
 anyhow = "1.0"
 term_size = "0.3"
+cron_tab = { version = "0.2", features = ["async"] }
 
 [profile.release]
 strip = true

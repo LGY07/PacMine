@@ -1,11 +1,13 @@
 use crate::project_manager::Config;
 use crate::project_manager::config::{JavaMode, JavaType};
+use crate::project_manager::tools::backup::{backup_check_repo, backup_init_repo};
 use crate::project_manager::tools::{
     ServerType, VersionInfo, analyze_jar, check_java, get_mime_type, install_bds, install_je,
     prepare_java,
 };
 use anyhow::Error;
-use chrono::Utc;
+use chrono::{FixedOffset, Local, TimeZone, Utc};
+use cron_tab::AsyncCron;
 use futures::future::join_all;
 use log::{debug, error, info, warn};
 use std::path::Path;
@@ -21,25 +23,85 @@ use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
 use tokio::{signal, spawn};
 
+/// 启动服务器
 pub fn start_server(config: Config) -> Result<(), Error> {
     pre_run(&config)?;
 
+    let config = Arc::new(config);
     let stop_flag = Arc::new(AtomicBool::new(false));
     let stop_flag_clone = stop_flag.clone();
 
+    // 以下开始异步🤯
     let rt = Runtime::new()?;
-
     rt.block_on(async move {
         let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
         // backup 线程
         if config.backup.enable {
             let stop = stop_flag.clone();
+            let config = Arc::clone(&config);
             handles.push(spawn(async move {
                 info!("Backup task enabled");
+                // 初始化仓库
+                if backup_check_repo(".nmsl/backup/world").is_err() {
+                    backup_init_repo(".nmsl/backup/world")?
+                }
+                if backup_check_repo(".nmsl/backup/other").is_err() {
+                    backup_init_repo(".nmsl/backup/other")?
+                }
+                // 启动时备份
+                if config.backup.event.is_some() && config.backup.event.as_ref().unwrap().start {
+                    info!("Backup is enabled at start")
+                    // TODO：执行备份操作
+                }
+                // 时间备份
+                if config.backup.time.is_some() {
+                    if !config.backup.time.as_ref().unwrap().cron.is_empty() {
+                        info!("Cron backup enabled");
+                        let local_tz = Local::from_offset(&FixedOffset::east_opt(7).unwrap());
+                        let mut cron = AsyncCron::new(local_tz);
+                        cron.add_fn(config.backup.time.as_ref().unwrap().cron.trim(), || async {
+                            debug!("Corn job executed at: {}", Local::now());
+                            // TODO：执行备份操作
+                        })
+                        .await
+                        .unwrap();
+                        // 开始计划备份
+                        cron.start().await;
+                        while !stop.load(Ordering::SeqCst) {
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        }
+                        // 停止计划备份
+                        cron.stop().await
+                    }
+                    if config.backup.time.as_ref().unwrap().interval != 0 {
+                        info!("Interval backup enabled");
+                        let stop = stop.clone();
+                        let config = Arc::clone(&config);
+                        let time_backup_handle = spawn(async move {
+                            loop {
+                                debug!("Interval backup running");
+                                // TODO：执行备份操作
+                                tokio::time::sleep(std::time::Duration::from_secs(
+                                    config.backup.time.as_ref().unwrap().interval as u64,
+                                ))
+                                .await
+                            }
+                        });
+                        while !stop.load(Ordering::SeqCst) {
+                            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        }
+                        // 停止时间备份
+                        time_backup_handle.abort()
+                    }
+                }
                 while !stop.load(Ordering::SeqCst) {
-                    debug!("Backup task running...");
-                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                // 停止时备份
+                if config.backup.event.is_some() && config.backup.event.as_ref().unwrap().stop {
+                    info!("Backup is enabled at stop")
+                    // TODO：执行备份操作
                 }
                 info!("Backup task stopping...");
                 Ok(())
@@ -48,14 +110,16 @@ pub fn start_server(config: Config) -> Result<(), Error> {
 
         // 服务器线程
         let stop = stop_flag.clone();
+        let config = Arc::clone(&config);
         handles.push(spawn(async move {
+            let config = Arc::clone(&config);
             // 创建 channel
             let (tx, mut rx) = mpsc::channel::<String>(100);
 
-            let mut child = if let ServerType::BDS = config.project.server_type {
+            let mut child = if let ServerType::BDS = config.as_ref().project.server_type {
                 // BDS
                 info!("Server starting...");
-                Command::new(&config.project.execute)
+                Command::new(&config.as_ref().project.execute)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
@@ -187,7 +251,7 @@ pub fn start_server(config: Config) -> Result<(), Error> {
 
             // 等待服务器退出或超时 kill
             match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait()).await {
-                Ok(Ok(_)) => info!("Server exited gracefully."),
+                Ok(Ok(_)) => info!("Server exited gracefully. Press Enter to exit"),
                 Ok(Err(e)) => error!("Error waiting for server exit: {}", e),
                 Err(_) => {
                     warn!("Server did not exit in 10s, killing...");
