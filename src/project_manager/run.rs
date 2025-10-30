@@ -254,7 +254,6 @@ async fn backup_thread(config: Arc<Config>, stop: Arc<AtomicBool>) -> Result<(),
             // 配置 Cron 备份
             let local_tz = Local::from_offset(&FixedOffset::east_opt(7).unwrap());
             let mut cron = AsyncCron::new(local_tz);
-            let config = Arc::clone(&config); // 原始 Arc 不动
             cron.add_fn(config.backup.time.as_ref().unwrap().cron.trim(), {
                 let config = Arc::clone(&config); // clone 一份给闭包
                 move || {
