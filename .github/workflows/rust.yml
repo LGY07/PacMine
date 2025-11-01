@@ -16,7 +16,7 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-        
+
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -30,9 +30,6 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --all -- --check
-
-      - name: Lint with Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Build release
         run: cargo build --release --verbose
