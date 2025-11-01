@@ -48,10 +48,14 @@ pub fn start_server(config: Config) -> Result<(), Error> {
         // 启动服务器线程
         handles.push(spawn(server_thread(Arc::clone(&config), stop_flag.clone())));
 
-        // Ctrl+C 信号
-        signal::ctrl_c().await?;
-        info!("Ctrl+C received, setting stop flag...");
-        stop_flag.notify_waiters();
+        // 停止信号
+        tokio::select! {
+            _ = stop_flag.notified() => {},
+            _ = signal::ctrl_c()=> {
+                info!("Ctrl+C received, setting stop flag...");
+                stop_flag.notify_waiters();
+            },
+        }
 
         // 等待所有任务完成
         let results = join_all(handles).await;
@@ -227,25 +231,29 @@ async fn server_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(), Err
         }
     });
 
-    // 等待 stop
-    stop.notified().await;
-    info!("Stopping server...");
+    tokio::select! {
+        _ = stop.notified() => {
+            // 尝试发送 stop
+            let mut stdin = child_stdin.lock().await;
+            let _ = stdin.write_all(b"stop\n").await;
+            let _ = stdin.flush().await;
+            info!("Stopping server...");
+            // 等待服务器退出或超时 kill
+            match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait()).await {
+                Ok(Ok(_)) => info!("Server exited gracefully."),
+                Ok(Err(e)) => error!("Error waiting for server exit: {}", e),
+                Err(_) => {
+                    warn!("Server did not exit in 10s, killing...");
+                    let _ = child.kill().await;
+                    let _ = child.wait().await;
+                }
+            }
 
-    // 先发送 stop
-    {
-        let mut stdin = child_stdin.lock().await;
-        let _ = stdin.write_all(b"stop\n").await;
-        let _ = stdin.flush().await;
-    }
-
-    // 等待服务器退出或超时 kill
-    match tokio::time::timeout(std::time::Duration::from_secs(10), child.wait()).await {
-        Ok(Ok(_)) => info!("Server exited gracefully."),
-        Ok(Err(e)) => error!("Error waiting for server exit: {}", e),
-        Err(_) => {
-            warn!("Server did not exit in 10s, killing...");
-            let _ = child.kill().await;
-            let _ = child.wait().await;
+        }
+        status = child.wait() => {
+            let status = status?;
+            stop.notify_waiters();
+            info!("Server exited: {:?}", status.code());
         }
     }
 
