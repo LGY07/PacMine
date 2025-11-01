@@ -1,3 +1,4 @@
+use crate::project_manager::CACHE_DIR;
 use anyhow::Error;
 use log::debug;
 use rustic_backend::BackendOptions;
@@ -7,8 +8,6 @@ use rustic_core::{
 };
 use std::path::PathBuf;
 
-/// 默认的缓存目录
-const CACHE_DIR: &str = ".nmsl/cache/backup";
 /// 默认的备份密码，无意义，所以用空字符串
 const PASSWORD: &str = "";
 
@@ -21,7 +20,7 @@ pub fn backup_init_repo(path: &str) -> Result<(), Error> {
 
     // Init repository
     let repo_opts = RepositoryOptions::default()
-        .cache_dir(CACHE_DIR)
+        .cache_dir(format!("{}/backup", CACHE_DIR))
         .password(PASSWORD);
     let key_opts = KeyOptions::default();
     let config_opts = ConfigOptions::default();
@@ -40,7 +39,7 @@ pub fn backup_new_snap(path: &str, tag: &str, source: Vec<PathBuf>) -> Result<()
 
     // Open repository
     let repo_opts = RepositoryOptions::default()
-        .cache_dir(CACHE_DIR)
+        .cache_dir(format!("{}/backup", CACHE_DIR))
         .password(PASSWORD);
 
     let repo = Repository::new(&repo_opts, &backends)?
@@ -67,7 +66,7 @@ pub fn backup_check_repo(path: &str) -> Result<(), Error> {
 
     // Open repository
     let repo_opts = RepositoryOptions::default()
-        .cache_dir(CACHE_DIR)
+        .cache_dir(format!("{}/backup", CACHE_DIR))
         .password(PASSWORD);
     let repo = Repository::new(&repo_opts, &backends)?.open()?;
 
@@ -86,7 +85,7 @@ pub fn backup_restore_snap(path: &str, snap: &str, destination: &str) -> Result<
 
     // Open repository
     let repo_opts = RepositoryOptions::default()
-        .cache_dir(CACHE_DIR)
+        .cache_dir(format!("{}/backup", CACHE_DIR))
         .password(PASSWORD);
     let repo = Repository::new(&repo_opts, &backends)?
         .open()?

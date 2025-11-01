@@ -1,3 +1,4 @@
+mod daemon;
 mod project_manager;
 
 use crate::project_manager::{create_project, get_info, print_info, start_server};
@@ -6,7 +7,6 @@ use colored::Colorize;
 use log::{LevelFilter, error};
 use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 use std::fs;
-use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Parser)]

@@ -3,6 +3,37 @@
 version = 4
 
 [[package]]
+name = "PacMine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "clap",
+ "colored",
+ "cron_tab",
+ "flate2",
+ "futures",
+ "hex",
+ "indicatif",
+ "infer",
+ "lazy_static",
+ "log",
+ "regex",
+ "reqwest",
+ "rustic_backend",
+ "rustic_core",
+ "serde",
+ "sha1",
+ "sha2",
+ "simplelog",
+ "tar",
+ "term_size",
+ "tokio",
+ "toml",
+ "zip",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2023,37 +2054,6 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "neo-minecraft-server-launcher"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "colored",
- "cron_tab",
- "flate2",
- "futures",
- "hex",
- "indicatif",
- "infer",
- "lazy_static",
- "log",
- "regex",
- "reqwest",
- "rustic_backend",
- "rustic_core",
- "serde",
- "sha1",
- "sha2",
- "simplelog",
- "tar",
- "term_size",
- "tokio",
- "toml",
- "zip",
 ]
 
 [[package]]

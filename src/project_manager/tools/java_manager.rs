@@ -1,5 +1,6 @@
 use crate::project_manager::config::JavaType;
-use crate::project_manager::tools::{DEFAULT_DOWNLOAD_THREAD, DOWNLOAD_CACHE_DIR, download_files};
+use crate::project_manager::tools::{DEFAULT_DOWNLOAD_THREAD, download_files};
+use crate::project_manager::{CACHE_DIR, RUNTIME_DIR};
 use anyhow::Error;
 use flate2::read::GzDecoder;
 use log::debug;
@@ -14,7 +15,8 @@ use zip::ZipArchive;
 pub fn prepare_java(edition: JavaType, version: usize) -> Result<(), Error> {
     debug!("Prepare Java");
     let runtime_path = PathBuf::from(format!(
-        ".nmsl/runtime/java-{}-{}-{}-{}",
+        "{}/java-{}-{}-{}-{}",
+        RUNTIME_DIR,
         version,
         edition,
         std::env::consts::OS,
@@ -70,7 +72,7 @@ fn prepare_graalvm(version: usize, runtime_path: &Path) -> Result<(), Error> {
     // 下载文件
     let files_vec = download_files(
         vec![url.clone()],
-        DOWNLOAD_CACHE_DIR,
+        format!("{}/download", CACHE_DIR).as_str(),
         DEFAULT_DOWNLOAD_THREAD,
     );
     let files = files_vec
@@ -121,7 +123,7 @@ fn prepare_openjdk(version: usize, runtime_path: &Path) -> Result<(), Error> {
     // 下载文件
     let files_vec = download_files(
         vec![url.clone()],
-        DOWNLOAD_CACHE_DIR,
+        format!("{}/download", CACHE_DIR).as_str(),
         DEFAULT_DOWNLOAD_THREAD,
     );
     let files = files_vec

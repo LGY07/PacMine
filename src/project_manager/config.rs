@@ -1,3 +1,4 @@
+use crate::project_manager::RUNTIME_DIR;
 use crate::project_manager::tools::check_java;
 pub(crate) use crate::project_manager::tools::{ServerType, VersionType};
 use anyhow::Error;
@@ -345,7 +346,8 @@ impl Display for JavaType {
 impl Java {
     pub fn to_binary(&self) -> Result<PathBuf, Error> {
         let runtime_path = format!(
-            ".nmsl/runtime/java-{}-{}-{}-{}",
+            "{}/java-{}-{}-{}-{}",
+            RUNTIME_DIR,
             &self.version,
             &self.edition,
             std::env::consts::OS,

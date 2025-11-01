@@ -1,7 +1,9 @@
-use crate::project_manager::Config;
 use crate::project_manager::config::ServerType;
 use crate::project_manager::info::{ConfigErr, get_info};
 use crate::project_manager::tools::{VersionInfo, VersionType, analyze_je_game, get_mime_type};
+use crate::project_manager::{
+    BACKUP_DIR, CACHE_DIR, CONFIG_FILE, Config, LOG_DIR, RUNTIME_DIR, WORK_DIR,
+};
 use anyhow::Error;
 use colored::Colorize;
 use log::{error, info, warn};
@@ -9,13 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-const DIR_LIST: [&str; 5] = [
-    ".nmsl",
-    ".nmsl/cache",
-    ".nmsl/backup",
-    ".nmsl/runtime",
-    ".nmsl/log",
-];
+const DIR_LIST: [&str; 5] = [WORK_DIR, CACHE_DIR, BACKUP_DIR, RUNTIME_DIR, LOG_DIR];
 
 /// 初始化配置文件
 pub fn create_project() {
@@ -31,7 +27,7 @@ pub fn create_project() {
 
     // 项目残留文件存在，要求手动处理
     if config_err.eq(&ConfigErr::ConfigBroken) {
-        error!("{}","There are files related to NMSL in the current directory, but they may be damaged. Please check the .nmsl directory and the NMSL.toml file. You need to manually delete them to continue creating.".yellow());
+        error!("{}","There are files related to PacMine in the current directory, but they may be damaged. Please check the .pacmine directory and the PacMine.toml file. You need to manually delete them to continue creating.".yellow());
         return;
     }
 
@@ -61,7 +57,7 @@ pub fn create_project() {
     // 初始化项目
     // 创建配置文件
     config
-        .to_file(Path::new("NMSL.toml"))
+        .to_file(Path::new(CONFIG_FILE))
         .expect("The configuration file cannot be created!");
     // 创建目录
     for i in DIR_LIST {

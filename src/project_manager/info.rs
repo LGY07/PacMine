@@ -1,4 +1,4 @@
-use crate::project_manager::Config;
+use crate::project_manager::{CONFIG_FILE, Config, WORK_DIR};
 use log::error;
 use std::path::Path;
 
@@ -9,15 +9,15 @@ pub enum ConfigErr {
 }
 
 fn test_exists() -> bool {
-    // NMSL.toml 或者 .nmsl 存在
-    Path::new("NMSL.toml").exists() || Path::new(".nmsl").exists()
+    // PacMine.toml 或者 .pacmine 存在
+    Path::new(CONFIG_FILE).exists() || Path::new(WORK_DIR).exists()
 }
 
 fn read_config() -> Result<Config, ConfigErr> {
-    let config_path = Path::new("NMSL.toml");
+    let config_path = Path::new(CONFIG_FILE);
 
     // 检查目录/文件是否正确
-    if !config_path.is_file() || !Path::new(".nmsl").is_dir() {
+    if !config_path.is_file() || !Path::new(WORK_DIR).is_dir() {
         return Err(ConfigErr::ConfigBroken);
     }
 

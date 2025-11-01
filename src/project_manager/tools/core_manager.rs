@@ -1,5 +1,6 @@
+use crate::project_manager::CACHE_DIR;
 use crate::project_manager::tools::{
-    DEFAULT_DOWNLOAD_THREAD, DOWNLOAD_CACHE_DIR, VersionInfo, VersionManifest, download_files,
+    DEFAULT_DOWNLOAD_THREAD, VersionInfo, VersionManifest, download_files,
 };
 use anyhow::Error;
 use std::fs;
@@ -17,7 +18,11 @@ pub fn install_je(version: VersionInfo) -> Result<(), Error> {
     // 获得下载链接
     let (url, sha1) = manifest.search(version.name)?.to_download()?;
     // 下载文件
-    let files = download_files(vec![url], DOWNLOAD_CACHE_DIR, DEFAULT_DOWNLOAD_THREAD);
+    let files = download_files(
+        vec![url],
+        format!("{}/download", CACHE_DIR).as_str(),
+        DEFAULT_DOWNLOAD_THREAD,
+    );
     // 校验文件
     let file = files
         .first()

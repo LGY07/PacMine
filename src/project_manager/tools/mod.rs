@@ -6,7 +6,6 @@ mod file_parser;
 mod java_manager;
 mod version_parser;
 
-const DOWNLOAD_CACHE_DIR: &str = ".nmsl/cache/download";
 const DEFAULT_DOWNLOAD_THREAD: usize = 5;
 
 pub use core_manager::{install_bds, install_je};

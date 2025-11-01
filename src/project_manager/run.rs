@@ -1,10 +1,10 @@
-use crate::project_manager::Config;
 use crate::project_manager::config::{JavaMode, JavaType};
 use crate::project_manager::tools::backup::{backup_check_repo, backup_init_repo, backup_new_snap};
 use crate::project_manager::tools::{
     ServerType, VersionInfo, analyze_jar, check_java, get_mime_type, install_bds, install_je,
     prepare_java,
 };
+use crate::project_manager::{BACKUP_DIR, Config, LOG_DIR, WORK_DIR};
 use anyhow::Error;
 use chrono::{FixedOffset, Local, TimeZone, Utc};
 use cron_tab::AsyncCron;
@@ -22,9 +22,6 @@ use tokio::runtime::Runtime;
 use tokio::sync::{Mutex, mpsc};
 use tokio::task::JoinHandle;
 use tokio::{signal, spawn};
-
-const BACKUP_WORLD_DIR: &str = ".nmsl/backup/world/";
-const BACKUP_OTHER_DIR: &str = ".nmsl/backup/other/";
 
 /// 启动服务器
 pub fn start_server(config: Config) -> Result<(), Error> {
@@ -111,7 +108,8 @@ async fn server_thread(config: Arc<Config>, stop: Arc<AtomicBool>) -> Result<(),
             .create(true)
             .append(true)
             .open(format!(
-                ".nmsl/log/stdout-{}.log",
+                "{}/stdout-{}.log",
+                LOG_DIR,
                 Utc::now().format("%Y-%m-%d_%H-%M-%S")
             ))
             .await?,
@@ -122,7 +120,8 @@ async fn server_thread(config: Arc<Config>, stop: Arc<AtomicBool>) -> Result<(),
             .create(true)
             .append(true)
             .open(format!(
-                ".nmsl/log/stderr-{}.log",
+                "{}/stderr-{}.log",
+                LOG_DIR,
                 Utc::now().format("%Y-%m-%d_%H-%M-%S")
             ))
             .await?,
@@ -232,11 +231,11 @@ async fn backup_thread(config: Arc<Config>, stop: Arc<AtomicBool>) -> Result<(),
     let mut backup_handles = vec![];
     info!("Backup task enabled");
     // 初始化仓库
-    if backup_check_repo(BACKUP_WORLD_DIR).is_err() {
-        backup_init_repo(BACKUP_WORLD_DIR)?
+    if backup_check_repo(format!("{}/world", BACKUP_DIR).as_str()).is_err() {
+        backup_init_repo(format!("{}/world", BACKUP_DIR).as_str())?
     }
-    if backup_check_repo(BACKUP_OTHER_DIR).is_err() {
-        backup_init_repo(BACKUP_OTHER_DIR)?
+    if backup_check_repo(format!("{}/other", BACKUP_DIR).as_str()).is_err() {
+        backup_init_repo(format!("{}/other", BACKUP_DIR).as_str())?
     }
     // 启动时备份
     if config.backup.event.is_some() && config.backup.event.as_ref().unwrap().start {
@@ -315,7 +314,11 @@ async fn run_backup(tag: &str, world: bool, other: bool) -> Result<(), Error> {
         let tag = Arc::clone(&tag_arc);
         handles.push(spawn(async move {
             // 运行备份
-            backup_new_snap(BACKUP_WORLD_DIR, tag.as_ref(), vec!["world".parse()?])?;
+            backup_new_snap(
+                format!("{}/world", BACKUP_DIR).as_str(),
+                tag.as_ref(),
+                vec!["world".parse()?],
+            )?;
             Ok::<(), Error>(())
         }))
     }
@@ -329,13 +332,17 @@ async fn run_backup(tag: &str, world: bool, other: bool) -> Result<(), Error> {
                 let path = entry.path();
                 if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                     // 排除目录
-                    if file_name != ".nmsl" && file_name != "world" {
+                    if file_name != WORK_DIR && file_name != "world" {
                         path_list.push(path);
                     }
                 }
             }
             // 运行备份
-            backup_new_snap(BACKUP_OTHER_DIR, tag.as_ref(), path_list)?;
+            backup_new_snap(
+                format!("{}/other", BACKUP_DIR).as_str(),
+                tag.as_ref(),
+                path_list,
+            )?;
             Ok::<(), Error>(())
         }))
     }
