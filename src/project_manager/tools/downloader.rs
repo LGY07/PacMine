@@ -1,7 +1,7 @@
 use crate::project_manager::MAX_RETRIES;
 use anyhow::Error;
 use futures::future::join_all;
-use indicatif::{HumanDuration, ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use log::{debug, info};
 use reqwest::{Client, blocking};
 use sha1::Sha1;
@@ -35,23 +35,19 @@ pub fn download_files(
 
 /// 单线程下载文件
 pub fn download_file_single_thread(url: &str, dir: &str) -> Result<FileDownloadResult, Error> {
-    // 创建目录
     std::fs::create_dir_all(dir)?;
-
     let filename = url.split('/').last().unwrap_or("file");
     let filepath = Path::new(dir).join(filename);
 
     let client = blocking::Client::builder().build()?;
     let mut resp = client.get(url).send()?.error_for_status()?;
 
-    // 创建文件
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
         .open(&filepath)?;
 
-    // 进度条，未知总长度
     let pb = ProgressBar::new_spinner();
     pb.set_style(ProgressStyle::with_template("{msg} [{spinner}] {bytes}")?);
     pb.set_message(filename.to_string());
@@ -88,34 +84,6 @@ async fn download_files_async(
 ) -> Vec<Result<FileDownloadResult, Error>> {
     debug!("Download the files");
     fs::create_dir_all(dir).ok();
-    let client = Client::builder().use_rustls_tls().build().unwrap();
-
-    // 计算总大小
-    let mut total_bytes = 0u64;
-    for url in &urls {
-        if let Ok(resp) = client.head(url).send().await {
-            if let Some(len) = resp.headers().get(reqwest::header::CONTENT_LENGTH) {
-                if let Ok(len_str) = len.to_str() {
-                    if let Ok(size) = len_str.parse::<u64>() {
-                        total_bytes += size;
-                    }
-                }
-            }
-        }
-    }
-
-    let total_progress = ProgressBar::new(total_bytes);
-    total_progress.set_draw_target(ProgressDrawTarget::stdout_with_hz(3));
-    total_progress.set_style(
-        ProgressStyle::with_template(
-            &format!(
-                "{{msg}} [{{bar:{}}}] {{human_pos}}/{{human_len}} ({{percent}}%) {{bytes_per_sec}} ETA: {{eta_precise}}",
-                progress_bar_width()
-            )
-        )
-            .unwrap(),
-    );
-    total_progress.set_message("Total Progress");
 
     let start_time = Instant::now();
     let total_count = urls.len();
@@ -124,14 +92,13 @@ async fn download_files_async(
     let mut handles = vec![];
     for url in urls.clone() {
         let dir = dir.to_string();
-        let total_progress = total_progress.clone();
         let completed_files = completed_files.clone();
 
         let handle = tokio::spawn(async move {
-            let res = download_single_with_retry(&url, &dir, threads, total_progress.clone()).await;
+            let res = download_single_with_retry(&url, &dir, threads).await;
             let mut completed = completed_files.lock().unwrap();
             *completed += 1;
-            total_progress.set_message(format!("Total Progress ({}/{})", *completed, total_count));
+            info!("({}/{}) {}", *completed, total_count, url);
             res
         });
         handles.push(handle);
@@ -139,10 +106,10 @@ async fn download_files_async(
 
     let results = join_all(handles).await;
 
-    total_progress.finish_with_message(format!(
+    info!(
         "All downloads completed (elapsed: {})",
         HumanDuration(start_time.elapsed())
-    ));
+    );
 
     results
         .into_iter()
@@ -150,17 +117,15 @@ async fn download_files_async(
         .collect()
 }
 
-// 对整个文件增加重试逻辑
 async fn download_single_with_retry(
     url: &str,
     dir: &str,
     threads: usize,
-    total_progress: ProgressBar,
 ) -> Result<FileDownloadResult, Error> {
     let mut attempts = 0;
     loop {
         attempts += 1;
-        match download_single(url, dir, threads, total_progress.clone()).await {
+        match download_single(url, dir, threads).await {
             Ok(res) => return Ok(res),
             Err(e) => {
                 if attempts >= MAX_RETRIES {
@@ -179,7 +144,6 @@ async fn download_single(
     url: &str,
     dir: &str,
     threads: usize,
-    total_progress: ProgressBar,
 ) -> Result<FileDownloadResult, Error> {
     let client = Client::builder().use_rustls_tls().build()?;
     let resp = client.head(url).send().await?;
@@ -199,12 +163,14 @@ async fn download_single(
     let chunk_size = (total_size + threads as u64 - 1) / threads as u64;
     let file_path = Arc::new(filepath.clone());
 
-    // 单文件进度条
+    // 文件级进度条
     let pb = ProgressBar::new(total_size);
-    pb.set_style(ProgressStyle::with_template(&format!(
-        "{{msg}} [{{bar:{}}}] {{human_pos}}/{{human_len}} ({{percent}}%)",
-        progress_bar_width()
-    ))?);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "{msg} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({percent}%)",
+        )?
+        .progress_chars("=> "),
+    );
     pb.set_message(filename.to_string());
 
     let mut handles = vec![];
@@ -219,7 +185,6 @@ async fn download_single(
         let url = url.to_string();
         let file_path = file_path.clone();
         let pb = pb.clone();
-        let total_progress = total_progress.clone();
 
         let handle = task::spawn(async move {
             let mut attempt = 0;
@@ -238,9 +203,7 @@ async fn download_single(
 
                     while let Some(chunk) = resp.chunk().await? {
                         f.write_all(&chunk)?;
-                        let len = chunk.len() as u64;
-                        pb.inc(len);
-                        total_progress.inc(len);
+                        pb.inc(chunk.len() as u64);
                     }
                     Ok(())
                 }
@@ -289,13 +252,4 @@ async fn download_single(
         sha256: hex::encode(sha256.finalize()),
         sha1: hex::encode(sha1.finalize()),
     })
-}
-
-/// 终端宽度
-fn progress_bar_width() -> usize {
-    if let Some((width, _)) = term_size::dimensions() {
-        width
-    } else {
-        50
-    }
 }
