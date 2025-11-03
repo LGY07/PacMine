@@ -33,6 +33,7 @@ tar = "0.4"
 sha1 = "0.10"
 anyhow = "1.0"
 cron_tab = { version = "0.2", features = ["async"] }
+axum = "0.8"
 
 [profile.release]
 strip = true
