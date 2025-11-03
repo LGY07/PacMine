@@ -7,7 +7,7 @@ pub mod tools;
 pub use config::Config;
 pub use create::create_project;
 pub use info::{get_info, print_info};
-pub use run::start_server;
+pub use run::{pre_run, start_server};
 
 /// 配置文件
 pub const CONFIG_FILE: &str = "PacMine.toml";

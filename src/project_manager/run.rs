@@ -401,7 +401,7 @@ async fn run_backup(tag: &str, world: bool, other: bool) -> Result<(), Error> {
 }
 
 /// 运行前准备工作
-fn pre_run(config: &Config) -> Result<(), Error> {
+pub fn pre_run(config: &Config) -> Result<(), Error> {
     // 准备基岩版
     if let ServerType::BDS = config.project.server_type {
         debug!("Prepare the Bedrock Edition server");

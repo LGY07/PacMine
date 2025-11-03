@@ -1,7 +1,9 @@
 mod daemon;
 mod project_manager;
 
-use crate::project_manager::{CACHE_DIR, create_project, get_info, print_info, start_server};
+use crate::project_manager::{
+    CACHE_DIR, create_project, get_info, pre_run, print_info, start_server,
+};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use log::{LevelFilter, error};
@@ -91,17 +93,24 @@ fn main() {
         // 生成启动脚本
         if *generate {
             todo!();
-            return;
         }
-        // 推送到守护进程
+        // 推送到守护进程(指定 URL)，仅支持 Unix 平台
         if *detach {
-            todo!();
-            return;
+            #[cfg(target_family = "unix")]
+            {
+                todo!();
+                return;
+            }
+            error!("This feature is not supported on this platform");
         }
-        // 连接到守护进程
+        // 连接到守护进程(指定 URL)，仅支持 Unix 平台
         if *attach {
-            todo!();
-            return;
+            #[cfg(target_family = "unix")]
+            {
+                todo!();
+                return;
+            }
+            error!("This feature is not supported on this platform");
         }
         // 正常启动游戏
         match get_info() {
@@ -128,6 +137,15 @@ fn main() {
     if let Commands::Init = &cli.command {
         // 初始化项目
         create_project()
+    }
+
+    // install 子命令，执行运行前准备工作
+    if let Commands::Install = &cli.command {
+        // 读取配置并运行
+        match get_info() {
+            Ok(v) => pre_run(&v).expect("The program exited with errors!"),
+            Err(e) => error!("The configuration cannot be opened: {:?}", e),
+        };
     }
 
     // 清理缓存
