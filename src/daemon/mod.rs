@@ -1,5 +1,5 @@
 mod config;
 mod control;
+mod project;
 mod run;
-mod stream;
-mod tasks;
+mod websocket;
