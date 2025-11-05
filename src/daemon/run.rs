@@ -55,7 +55,7 @@ pub fn server(config: config::Config) -> Result<(), Error> {
             ApiAddr::Tcp(addr) => {
                 info!("Listening on TCP: {addr}");
                 let listener = TcpListener::bind(addr).await?;
-                axum::serve(listener,app).await?;
+                axum::serve(listener, app).await?;
             }
 
             // 监听 Unix Socket
@@ -67,8 +67,8 @@ pub fn server(config: config::Config) -> Result<(), Error> {
 
                 #[cfg(target_family = "unix")]
                 {
-                    use tokio::net::UnixListener;
                     use std::path::Path;
+                    use tokio::net::UnixListener;
                     // 删除旧的 socket 文件
                     if Path::new(&path).exists() {
                         std::fs::remove_file(&path)?;
@@ -76,8 +76,7 @@ pub fn server(config: config::Config) -> Result<(), Error> {
 
                     info!("Listening on Unix socket: {path:?}");
                     let listener = UnixListener::bind(&path)?;
-                    axum::serve(listener,app).await?;
-
+                    axum::serve(listener, app).await?;
                 }
             }
         };
