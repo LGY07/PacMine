@@ -137,14 +137,14 @@ pub struct PluginManage {
 /// 为 Config 定义方法
 impl Config {
     /// 从文件读取 TOML
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Error> {
         let content = fs::read_to_string(path)?;
         let config: Config = toml::from_str(&content)?;
         Ok(config)
     }
 
     /// 将 TOML 写入到文件
-    pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
         let content = toml::to_string_pretty(self)?;
         fs::write(path, content)?;
         Ok(())
