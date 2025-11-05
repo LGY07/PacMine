@@ -16,7 +16,7 @@ use axum::{
 use chrono::Utc;
 use log::info;
 use serde_json::json;
-use tokio::net::{TcpListener, UnixListener};
+use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
 /// 运行 Daemon
