@@ -1,4 +1,3 @@
-use crate::daemon::config::ApiAddr::Tcp;
 use anyhow::Error;
 use home::home_dir;
 use serde::{Deserialize, Serialize};
