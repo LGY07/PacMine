@@ -412,7 +412,7 @@ curl -X POST http://localhost/project/{project id}/download \
 }
 ```
 
-### Edit
+### Upload
 
 Modify a file in the project.
 
@@ -420,9 +420,9 @@ Used to modify configuration files.
 
 * Endpoint
 
-| Method | Path                         |
-|:-------|:-----------------------------|
-| POST   | `/project/{project id}/edit` |
+| Method | Path                           |
+|:-------|:-------------------------------|
+| POST   | `/project/{project id}/upload` |
 
 * Request
 
@@ -445,7 +445,7 @@ file=@server.properties
 * Example
 
 ```
-curl -X POST http://localhost/project/{project id}/edit \
+curl -X POST http://localhost/project/{project id}/upload \
     -H "Content-Type: multipart/form-data" \
     -H "Authorization: Bearer {Your API Token}" \
     -F "path=server.properties" \
