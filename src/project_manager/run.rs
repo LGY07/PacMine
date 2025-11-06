@@ -6,7 +6,7 @@ use crate::project_manager::tools::{
 };
 use crate::project_manager::{BACKUP_DIR, Config, LOG_DIR, WORK_DIR};
 use anyhow::Error;
-use chrono::{FixedOffset, Local, TimeZone, Utc};
+use chrono::{Local, Utc};
 use cron_tab::AsyncCron;
 use futures::future::join_all;
 use log::{debug, error, info, warn};
@@ -301,46 +301,64 @@ async fn backup_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(), Err
     if config.backup.time.is_some() {
         if !config.backup.time.as_ref().unwrap().cron.is_empty() {
             info!("Cron backup enabled");
-            // 配置 Cron 备份
-            let local_tz = Local::from_offset(&FixedOffset::east_opt(7).unwrap());
-            let mut cron = AsyncCron::new(local_tz);
-            cron.add_fn(config.backup.time.as_ref().unwrap().cron.trim(), {
-                let config = Arc::clone(&config); // clone 一份给闭包
-                move || {
-                    let config = Arc::clone(&config); // async move 闭包内部再 clone
-                    async move {
-                        let _ = run_backup("Corn", config.backup.world, config.backup.other).await;
+            let stop = stop.clone();
+            let config = Arc::clone(&config);
+            backup_handles.push(spawn(async move {
+                // 配置 Cron 备份
+                let mut cron = AsyncCron::new(Local);
+                cron.add_fn(config.backup.time.as_ref().unwrap().cron.trim(), {
+                    let config = Arc::clone(&config); // clone 一份给闭包
+                    move || {
+                        let config = Arc::clone(&config); // async move 闭包内部再 clone
+                        async move {
+                            let _ =
+                                run_backup("Corn", config.backup.world, config.backup.other).await;
+                        }
                     }
-                }
-            })
-            .await?;
-            // 开始 Cron 备份
-            cron.start().await;
-            // 等待 Stop
-            stop.notified().await;
-            // 停止 Cron 备份
-            cron.stop().await
+                })
+                .await?;
+                // 开始 Cron 备份
+                cron.start().await;
+                debug!("[Cron Backup] Wait for stop signal");
+                // 等待 Stop
+                stop.notified().await;
+                // 停止 Cron 备份
+                cron.stop().await;
+                Ok(())
+            }));
         }
         if config.backup.time.as_ref().unwrap().interval != 0 {
             info!("Interval backup enabled");
             // 开始间隔备份
             let stop = stop.clone();
             let config = Arc::clone(&config);
-            let time_backup_handle: JoinHandle<Result<(), Error>> = spawn(async move {
+            backup_handles.push(spawn(async move {
                 loop {
-                    run_backup("Interval", config.backup.world, config.backup.other).await?;
-                    tokio::time::sleep(std::time::Duration::from_secs(
-                        config.backup.time.as_ref().unwrap().interval as u64,
-                    ))
-                    .await
+                    tokio::select! {
+                        _ = stop.notified() => {
+                            // 等待 Stop
+                            info!("Stop signal received. Exiting interval backup loop.");
+                            break Ok(());
+                        }
+                        result = run_backup("Interval", config.backup.world, config.backup.other) => {
+                            if let Err(e) = result {
+                                error!("Backup failed: {:?}", e);
+                            }
+                            tokio::select! {
+                                _ = stop.notified() => {
+                                    // 等待 Stop
+                                    info!("Stop signal received. Exiting interval backup loop.");
+                                    break Ok(());
+                                    }
+                                _ = tokio::time::sleep(std::time::Duration::from_secs(config.backup.time.as_ref().unwrap().interval as u64)) => {}
+                            }
+                        }
+                    }
                 }
-            });
-            // 等待 Stop
-            stop.notified().await;
-            // 停止时间备份
-            time_backup_handle.abort()
+            }));
         }
     }
+    debug!("[Backup] Wait for stop signal");
     // 等待 Stop
     stop.notified().await;
     // 停止时备份
@@ -350,8 +368,9 @@ async fn backup_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(), Err
     }
     info!("Backup task stopping...");
     for i in backup_handles {
-        i.abort()
+        i.await??
     }
+    debug!("Backup task stopped.");
     Ok(())
 }
 
