@@ -1,5 +1,5 @@
 use crate::daemon::config;
-use crate::daemon::config::{ApiAddr, Token};
+use crate::daemon::config::{ApiAddr, Known, Token};
 use crate::daemon::control::{add, create, list, remove, status};
 use crate::daemon::project::{connect, download, edit, start, stop};
 use crate::daemon::websocket::terminal;
@@ -16,6 +16,8 @@ use axum::{
 use chrono::Utc;
 use log::{debug, info};
 use serde_json::json;
+use std::path::Path;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
@@ -24,6 +26,40 @@ pub fn server(config: config::Config) -> Result<(), Error> {
     // 检查配置文件
     config.check_config()?;
 
+    // 初始化工作目录
+    if !Path::new(&config.storage.work_dir).is_dir() {
+        std::fs::create_dir(&config.storage.work_dir)?;
+    }
+    // 创建 known list
+    if !Path::new(format!("{}/known.toml", &config.storage.work_dir).as_str()).is_file() {
+        Known {
+            current_mode: config.storage.save_space.clone(),
+            project: vec![],
+        }
+        .to_file(format!("{}/known.toml", &config.storage.work_dir))?;
+    }
+    // 创建只读资源目录
+    if !Path::new(format!("{}/read_only", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/read_only", &config.storage.work_dir).as_str())?;
+    }
+    if !Path::new(format!("{}/read_only/resources", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/read_only/resources", &config.storage.work_dir).as_str())?;
+    }
+    if !Path::new(format!("{}/read_only/versions", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/versions", &config.storage.work_dir).as_str())?;
+    }
+    if !Path::new(format!("{}/read_only/runtimes", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/read_only/runtimes", &config.storage.work_dir).as_str())?;
+    }
+    // 创建运行目录
+    if !Path::new(format!("{}/projects", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/projects", &config.storage.work_dir).as_str())?;
+    }
+    if !Path::new(format!("{}/merged", &config.storage.work_dir).as_str()).is_dir() {
+        std::fs::create_dir(format!("{}/merged", &config.storage.work_dir).as_str())?;
+    }
+
+    let config = Arc::new(config);
     let rt = Runtime::new()?;
     rt.block_on(async {
         // 公开路由
@@ -32,6 +68,7 @@ pub fn server(config: config::Config) -> Result<(), Error> {
             .route("/ws/{terminal}", get(terminal));
 
         // 受保护的路由
+        let config_clone = Arc::clone(&config);
         let protected = Router::new()
             .route("/control/list", get(list))
             .route("/control/add", post(add))
@@ -43,14 +80,17 @@ pub fn server(config: config::Config) -> Result<(), Error> {
             .route("/project/{id}/edit", post(edit))
             .route("/project/{id}/connect", get(connect))
             .route_layer(middleware::from_fn(move |req, next| {
-                require_bearer_token(req, next, config.token.clone())
+                require_bearer_token(req, next, config_clone.token.clone())
             }));
 
         // 合并路由
-        let app = Router::new().merge(public).merge(protected);
+        let app = Router::new()
+            .merge(public)
+            .merge(protected)
+            .with_state(config.clone());
 
         // 启动服务
-        match config.api.listen {
+        match &config.api.listen {
             // 监听 Tcp
             ApiAddr::Tcp(addr) => {
                 info!("Listening on TCP: {addr}");
@@ -98,7 +138,7 @@ async fn require_bearer_token(req: Request<Body>, next: Next, token_list: Vec<To
     if let Some(token) = auth_header.and_then(|v| v.strip_prefix("Bearer ")) {
         if token_list.iter().any(|known_token| {
             // Token 存在且未过期
-            known_token.value == token && known_token.expiration > Option::from(Utc::now())
+            known_token.value == token && known_token.expiration.is_none_or(|exp| exp > Utc::now())
         }) {
             debug!("Bearer Token authentication was successful");
             return next.run(req).await;

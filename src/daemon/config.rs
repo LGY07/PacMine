@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 /// Daemon 配置文件
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
     pub(crate) api: Api,
     pub(crate) storage: Storage,
@@ -16,12 +16,13 @@ pub struct Config {
 }
 
 /// API 选项
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Api {
     /// 监听位置
     pub(crate) listen: ApiAddr,
 }
 /// 解析的 API
+#[derive(Clone)]
 pub enum ApiAddr {
     /// /path/to/api.sock
     UnixSocket(PathBuf),
@@ -79,14 +80,14 @@ impl Serialize for ApiAddr {
 }
 
 /// 储存选项
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Storage {
     /// 工作目录
     pub(crate) work_dir: String,
     /// 节约空间选项
     pub(crate) save_space: SaveSpace,
 }
-#[derive(Deserialize, Serialize, PartialEq)]
+#[derive(Deserialize, Serialize, PartialEq, Clone)]
 pub enum SaveSpace {
     Disable,
     BindRuntime,
@@ -94,7 +95,7 @@ pub enum SaveSpace {
 }
 
 /// 安全选项
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Security {
     /// 用户 UID，负数则不支持 POSIX，安全选项无效
     pub(crate) user: isize,
@@ -113,9 +114,9 @@ pub struct Token {
 
 impl Config {
     /// 从文件读取 TOML
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Error> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let content = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let config: Self = toml::from_str(&content)?;
         Ok(config)
     }
 
@@ -226,22 +227,22 @@ impl Default for Config {
 
 #[derive(Deserialize, Serialize)]
 pub struct Known {
-    current_mode: SaveSpace,
-    project: Vec<Project>,
+    pub(crate) current_mode: SaveSpace,
+    pub(crate) project: Vec<Project>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Project {
-    id: usize,
-    manual: bool,
-    path: PathBuf,
+    pub(crate) id: usize,
+    pub(crate) manual: bool,
+    pub(crate) path: PathBuf,
 }
 
 impl Known {
     /// 从文件读取 TOML
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Error> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let content = fs::read_to_string(path)?;
-        let config: Config = toml::from_str(&content)?;
+        let config: Self = toml::from_str(&content)?;
         Ok(config)
     }
 

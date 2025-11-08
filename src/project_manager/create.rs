@@ -14,7 +14,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-const DIR_LIST: [&str; 5] = [WORK_DIR, CACHE_DIR, BACKUP_DIR, RUNTIME_DIR, LOG_DIR];
+pub const DIR_LIST: [&str; 5] = [WORK_DIR, CACHE_DIR, BACKUP_DIR, RUNTIME_DIR, LOG_DIR];
 
 /// 初始化配置文件
 pub fn create_project() {
