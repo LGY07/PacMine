@@ -35,7 +35,7 @@ pub struct Project {
     /// 服务端版本类型
     pub(crate) version_type: VersionType,
     /// 服务端可执行文件路径
-    pub(crate) execute: String,
+    pub(crate) execute: PathBuf,
     /// 服务器创建日期
     pub(crate) birthday: chrono::DateTime<chrono::Utc>,
 }
@@ -160,7 +160,7 @@ impl Default for Config {
             project: Project {
                 name: "MyServer".to_string(),
                 server_type: ServerType::Vanilla,
-                execute: "server.jar".to_string(),
+                execute: PathBuf::from("server.jar"),
                 version: "latest".to_string(),
                 birthday: chrono::Utc::now(),
                 version_type: VersionType::Release,
@@ -224,7 +224,7 @@ impl Display for Config {
             key("Version Type:"),
             self.project.version_type
         )?;
-        writeln!(f, "  {} {}", key("Executable:"), self.project.execute)?;
+        writeln!(f, "  {} {:?}", key("Executable:"), self.project.execute)?;
         writeln!(
             f,
             "  {} {}",

@@ -439,7 +439,7 @@ pub fn pre_run(config: &Config) -> Result<(), Error> {
             debug!("The file exists but has problems. Make a backup.");
             fs::rename(
                 Path::new(&config.project.execute),
-                Path::new(&format!("{}.bak", config.project.execute)),
+                Path::new(&format!("{:?}.bak", config.project.execute)),
             )?
         }
         // 安装服务端
@@ -456,7 +456,7 @@ pub fn pre_run(config: &Config) -> Result<(), Error> {
             debug!("The file exists but has problems. Make a backup.");
             fs::rename(
                 Path::new(&config.project.execute),
-                Path::new(&format!("{}.bak", config.project.execute)),
+                Path::new(&format!("{:?}.bak", config.project.execute)),
             )?
         }
         // 安装 Java 版服务端

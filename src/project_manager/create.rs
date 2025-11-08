@@ -118,12 +118,12 @@ fn create_config_empty() -> Config {
         // 自定义的可执行文件
         ServerType::Other => {
             println!("Enter the name of the executable file");
-            get_input()
+            get_input().parse().unwrap()
         }
         // BE 版可执行文件
-        ServerType::BDS => "server".to_string(),
+        ServerType::BDS => PathBuf::from("server"),
         // JE 版可执行文件
-        _ => "server.jar".to_string(),
+        _ => PathBuf::from("server.jar"),
     };
 
     // 获取并验证版本号
