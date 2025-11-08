@@ -27,36 +27,28 @@ pub fn server(config: config::Config) -> Result<(), Error> {
     config.check_config()?;
 
     // 初始化工作目录
-    if !Path::new(&config.storage.work_dir).is_dir() {
-        std::fs::create_dir(&config.storage.work_dir)?;
+    let dir_list = [
+        &config.storage.work_dir,
+        &config.storage.work_dir.join("projects"),
+        &config.storage.work_dir.join("merged"),
+        &config.storage.work_dir.join("read_only"),
+        &config.storage.work_dir.join("read_only").join("resources"),
+        &config.storage.work_dir.join("read_only").join("versions"),
+        &config.storage.work_dir.join("read_only").join("runtimes"),
+    ];
+    for i in dir_list {
+        if !i.is_dir() {
+            std::fs::create_dir(i)?;
+        }
     }
+
     // 创建 known list
-    if !Path::new(format!("{}/known.toml", &config.storage.work_dir).as_str()).is_file() {
+    if !&config.storage.work_dir.join("known.toml").is_file() {
         Known {
             current_mode: config.storage.save_space.clone(),
             project: vec![],
         }
-        .to_file(format!("{}/known.toml", &config.storage.work_dir))?;
-    }
-    // 创建只读资源目录
-    if !Path::new(format!("{}/read_only", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/read_only", &config.storage.work_dir).as_str())?;
-    }
-    if !Path::new(format!("{}/read_only/resources", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/read_only/resources", &config.storage.work_dir).as_str())?;
-    }
-    if !Path::new(format!("{}/read_only/versions", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/versions", &config.storage.work_dir).as_str())?;
-    }
-    if !Path::new(format!("{}/read_only/runtimes", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/read_only/runtimes", &config.storage.work_dir).as_str())?;
-    }
-    // 创建运行目录
-    if !Path::new(format!("{}/projects", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/projects", &config.storage.work_dir).as_str())?;
-    }
-    if !Path::new(format!("{}/merged", &config.storage.work_dir).as_str()).is_dir() {
-        std::fs::create_dir(format!("{}/merged", &config.storage.work_dir).as_str())?;
+        .to_file(&config.storage.work_dir.join("known.toml"))?;
     }
 
     let config = Arc::new(config);
@@ -73,7 +65,7 @@ pub fn server(config: config::Config) -> Result<(), Error> {
             .route("/control/list", get(list))
             .route("/control/add", post(add))
             .route("/control/create", post(create))
-            .route("/control/remove", get(remove))
+            .route("/control/remove/{id}", get(remove))
             .route("/project/{id}/start", get(start))
             .route("/project/{id}/stop", get(stop))
             .route("/project/{id}/download", post(download))

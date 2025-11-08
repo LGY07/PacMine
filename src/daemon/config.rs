@@ -83,7 +83,7 @@ impl Serialize for ApiAddr {
 #[derive(Deserialize, Serialize, Clone)]
 pub struct Storage {
     /// 工作目录
-    pub(crate) work_dir: String,
+    pub(crate) work_dir: PathBuf,
     /// 节约空间选项
     pub(crate) save_space: SaveSpace,
 }
@@ -207,10 +207,7 @@ impl Default for Config {
                 ),
             },
             storage: Storage {
-                work_dir: work_dir
-                    .to_str()
-                    .expect("Could not get the home directory")
-                    .to_string(),
+                work_dir,
                 save_space,
             },
             security: Security {
