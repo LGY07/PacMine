@@ -31,6 +31,7 @@ pub async fn status() -> Response {
 
 /// GET 获取列表
 pub async fn list(config: State<Arc<Config>>) -> Result<Response, Response> {
+    debug!("A list request was responded");
     // 定义响应
     #[derive(Deserialize, Serialize)]
     struct Project {
@@ -51,30 +52,30 @@ pub async fn list(config: State<Arc<Config>>) -> Result<Response, Response> {
     };
 
     // 读取已知列表
-    let known =
-        Known::from_file(format!("{}/known.toml", config.storage.work_dir)).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
-        })?;
+    let known = Known::from_file(config.storage.work_dir.join("known.toml")).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: e.to_string(),
+            }),
+        )
+            .into_response()
+    })?;
 
     // 构造响应列表
     for i in known.project {
-        let config = project_manager::Config::from_file(i.path).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
-        })?;
+        let config =
+            project_manager::Config::from_file(i.path.join("PacMine.toml")).map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        success: false,
+                        error: e.to_string(),
+                    }),
+                )
+                    .into_response()
+            })?;
         list_response.projects.push(Project {
             id: i.id,
             running: false, // TODO
@@ -93,21 +94,9 @@ pub struct Add {
 }
 /// POST 添加项目
 pub async fn add(config: State<Arc<Config>>, Json(body): Json<Add>) -> Result<Response, Response> {
+    debug!("A add request was responded");
     // 读取已知列表
-    let mut known =
-        Known::from_file(format!("{}/known.toml", config.storage.work_dir)).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
-        })?;
-
-    // 尝试读取添加的项目
-    project_manager::Config::from_file(&body.path).map_err(|e| {
+    let mut known = Known::from_file(config.storage.work_dir.join("known.toml")).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -118,6 +107,19 @@ pub async fn add(config: State<Arc<Config>>, Json(body): Json<Add>) -> Result<Re
             .into_response()
     })?;
 
+    // 尝试读取添加的项目
+    project_manager::Config::from_file(std::path::Path::new(&body.path).join("PacMine.toml"))
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    success: false,
+                    error: e.to_string(),
+                }),
+            )
+                .into_response()
+        })?;
+
     // 添加项目
     known.project.push(Project {
         id: known.project.iter().map(|x| x.id).max().unwrap_or(0),
@@ -127,7 +129,7 @@ pub async fn add(config: State<Arc<Config>>, Json(body): Json<Add>) -> Result<Re
 
     // 写入列表
     known
-        .to_file(format!("{}/known.toml", config.storage.work_dir))
+        .to_file(config.storage.work_dir.join("known.toml"))
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -150,6 +152,7 @@ pub async fn add(config: State<Arc<Config>>, Json(body): Json<Add>) -> Result<Re
 
 /// POST 创建项目
 pub async fn create(config: State<Arc<Config>>, body: String) -> Result<Response, Response> {
+    debug!("A create request was responded");
     // 解析 TOML
     let project = toml::from_str::<project_manager::Config>(body.as_str()).map_err(|e| {
         (
@@ -163,11 +166,11 @@ pub async fn create(config: State<Arc<Config>>, body: String) -> Result<Response
     })?;
 
     // 创建目录
-    let dir = format!(
-        "{}/projects/{}",
-        config.storage.work_dir,
-        uuid::Uuid::new_v4()
-    );
+    let dir = config
+        .storage
+        .work_dir
+        .join("projects")
+        .join(uuid::Uuid::new_v4().to_string());
     fs::create_dir(&dir).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -216,26 +219,25 @@ pub async fn create(config: State<Arc<Config>>, body: String) -> Result<Response
     // 添加到 known list
 
     // 读取已知列表
-    let mut known =
-        Known::from_file(format!("{}/known.toml", config.storage.work_dir)).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
-        })?;
+    let mut known = Known::from_file(config.storage.work_dir.join("known.toml")).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: e.to_string(),
+            }),
+        )
+            .into_response()
+    })?;
     // 添加项目
     known.project.push(Project {
         id: known.project.iter().map(|x| x.id).max().unwrap_or(0),
         manual: false, // 此处为 create API 创建
-        path: dir.parse().unwrap(),
+        path: dir,
     });
     // 写入列表
     known
-        .to_file(format!("{}/known.toml", config.storage.work_dir))
+        .to_file(config.storage.work_dir.join("konwn.toml"))
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -261,18 +263,18 @@ pub async fn remove(
     config: State<Arc<Config>>,
     Path(id): Path<usize>,
 ) -> Result<Response, Response> {
+    debug!("A remove request was responded");
     // 读取已知列表
-    let mut known =
-        Known::from_file(format!("{}/known.toml", config.storage.work_dir)).map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    success: false,
-                    error: e.to_string(),
-                }),
-            )
-                .into_response()
-        })?;
+    let mut known = Known::from_file(config.storage.work_dir.join("known.toml")).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                success: false,
+                error: e.to_string(),
+            }),
+        )
+            .into_response()
+    })?;
     // 查找项目
     let project = known
         .project
@@ -281,7 +283,7 @@ pub async fn remove(
         .find(|x| x.id == id)
         .ok_or(
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
+                StatusCode::NOT_FOUND,
                 Json(ErrorResponse {
                     success: false,
                     error: "The project cannot be found".to_string(),
@@ -289,6 +291,17 @@ pub async fn remove(
             )
                 .into_response(),
         )?;
+    // 判断是否应该删除
+    if project.manual {
+        return Err((
+            StatusCode::METHOD_NOT_ALLOWED,
+            Json(ErrorResponse {
+                success: false,
+                error: "Manually created projects are not allowed to be deleted".to_string(),
+            }),
+        )
+            .into_response());
+    }
     // 删除项目
     fs::remove_dir_all(project.path.clone()).map_err(|e| {
         (
@@ -304,7 +317,7 @@ pub async fn remove(
     known.project.retain(|x| x.id == project.id);
     // 写入列表
     known
-        .to_file(format!("{}/known.toml", config.storage.work_dir))
+        .to_file(config.storage.work_dir.join("known.toml"))
         .map_err(|e| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
