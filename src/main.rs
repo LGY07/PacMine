@@ -189,6 +189,6 @@ fn main() {
     }
 
     // 清理缓存
-    fs::remove_dir_all(CACHE_DIR).expect("Cache cleanup failed!");
-    fs::create_dir(CACHE_DIR).expect("Cache create failed!");
+    let _ = fs::remove_dir_all(CACHE_DIR);
+    let _ = fs::create_dir(CACHE_DIR);
 }

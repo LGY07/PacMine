@@ -43,7 +43,7 @@ pub fn server(config: config::Config) -> Result<(), Error> {
             .route("/project/{id}/edit", post(edit))
             .route("/project/{id}/connect", get(connect))
             .route_layer(middleware::from_fn(move |req, next| {
-                require_bearer_token(req, next, config.tokens.clone())
+                require_bearer_token(req, next, config.token.clone())
             }));
 
         // 合并路由

@@ -1,6 +1,6 @@
 use anyhow::Error;
 use home::home_dir;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fs;
 use std::net::SocketAddr as TcpAddr;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ pub struct Config {
     pub(crate) api: Api,
     pub(crate) storage: Storage,
     pub(crate) security: Security,
-    pub(crate) tokens: Vec<Token>,
+    pub(crate) token: Vec<Token>,
 }
 
 /// API 选项
@@ -22,12 +22,60 @@ pub struct Api {
     pub(crate) listen: ApiAddr,
 }
 /// 解析的 API
-#[derive(Deserialize, Serialize)]
 pub enum ApiAddr {
     /// /path/to/api.sock
     UnixSocket(PathBuf),
     /// IP:Port
     Tcp(TcpAddr),
+}
+
+/// 自定义的反序列化方法
+impl<'de> Deserialize<'de> for ApiAddr {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // 先读取成字符串
+        let s = String::deserialize(deserializer)?;
+        // 支持前缀 "unix://" 或 "unix:/" 表示 Unix Socket
+        if let Some(path) = s
+            .strip_prefix("unix://")
+            .or_else(|| s.strip_prefix("unix:/"))
+        {
+            return Ok(ApiAddr::UnixSocket(PathBuf::from(path)));
+        }
+        // 尝试解析为 TCP 地址
+        if let Ok(addr) = s.parse::<TcpAddr>() {
+            return Ok(ApiAddr::Tcp(addr));
+        }
+        // 否则当作 Unix Socket
+        if !s.is_empty() {
+            return Ok(ApiAddr::UnixSocket(PathBuf::from(s)));
+        }
+        Err(serde::de::Error::custom(format!(
+            "invalid API address: {} (expected unix://path or ip:port)",
+            s
+        )))
+    }
+}
+/// 自定义序列化
+impl Serialize for ApiAddr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            ApiAddr::UnixSocket(path) => {
+                // 序列化为 "unix://path/to.sock"
+                let s = format!("unix:/{}", path.display());
+                serializer.serialize_str(&s)
+            }
+            ApiAddr::Tcp(addr) => {
+                // 直接序列化为 "127.0.0.1:8080"
+                serializer.serialize_str(&addr.to_string())
+            }
+        }
+    }
 }
 
 /// 储存选项
@@ -168,7 +216,7 @@ impl Default for Config {
                 user: Self::getuser(),
                 permissive: Some(false),
             },
-            tokens: vec![Token {
+            token: vec![Token {
                 value: Uuid::new_v4().to_string(),
                 expiration: None,
             }],
@@ -187,6 +235,22 @@ pub struct Project {
     id: usize,
     manual: bool,
     path: PathBuf,
+}
+
+impl Known {
+    /// 从文件读取 TOML
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Config, Error> {
+        let content = fs::read_to_string(path)?;
+        let config: Config = toml::from_str(&content)?;
+        Ok(config)
+    }
+
+    /// 将 TOML 写入到文件
+    pub fn to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Error> {
+        let content = toml::to_string_pretty(self)?;
+        fs::write(path, content)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
