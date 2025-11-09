@@ -1,4 +1,4 @@
-use std::thread::sleep;
+use std::time::Duration;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -71,14 +71,23 @@ impl<In: Send + 'static, Out: Send + 'static> TaskManager<In, Out> {
             .map(|t| t.from_task_rx.clone())
     }
 
-    /// 停止指定任务
-    pub fn stop_task(&self, id: usize) {
-        if let Some(t) = self.tasks.lock().unwrap().get(&id) {
-            // 人被逼急了什么都做得出来
+    /// 停止指定任务并移除
+    pub async fn stop_task(&self, id: usize) {
+        // 先从 HashMap 里取出 Arc<Task>
+        let task = {
+            let mut tasks = self.tasks.lock().unwrap();
+            tasks.remove(&id)
+        };
+
+        if let Some(t) = task {
+            // 先发送 stop 信号
             for _ in 0..3 {
-                sleep(std::time::Duration::from_millis(100));
                 t.stop.notify_waiters();
+                tokio::time::sleep(Duration::from_millis(100)).await;
             }
+
+            // 等待任务结束
+            let _ = t.handle.await;
         }
     }
 
@@ -86,6 +95,7 @@ impl<In: Send + 'static, Out: Send + 'static> TaskManager<In, Out> {
     pub fn stop_all(&self) {
         for (_, t) in self.tasks.lock().unwrap().iter() {
             t.stop.notify_one();
+            self.tasks.lock().unwrap().clear()
         }
     }
 
