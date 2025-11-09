@@ -118,7 +118,7 @@ pub async fn stop(
             .into_response());
     }
     // 停止任务
-    task_manager.stop_task(id);
+    task_manager.stop_task(id).await;
 
     Ok((
         StatusCode::OK,
