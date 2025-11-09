@@ -1,11 +1,11 @@
 use crate::project_manager::tools::{ServerType, VersionInfo};
 use anyhow::Error;
 use infer;
-use log::debug;
 use regex::Regex;
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::Path;
+use tracing::debug;
 use zip::read::{ZipArchive, ZipFile};
 
 #[derive(Debug)]

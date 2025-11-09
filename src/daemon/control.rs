@@ -5,12 +5,12 @@ use crate::project_manager;
 use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json, http::StatusCode};
-use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Serialize)]
 pub(crate) struct ErrorResponse {

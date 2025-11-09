@@ -9,7 +9,6 @@ use anyhow::Error;
 use chrono::{Local, Utc};
 use cron_tab::AsyncCron;
 use futures::future::join_all;
-use log::{debug, error, info, warn};
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -21,6 +20,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{Mutex, Notify, mpsc};
 use tokio::task::JoinHandle;
 use tokio::{signal, spawn};
+use tracing::{debug, error, info, warn};
 
 /// 启动服务器
 pub fn start_server(config: Config) -> Result<(), Error> {
@@ -89,7 +89,7 @@ async fn server_thread_with_terminal(config: Arc<Config>, stop: Arc<Notify>) -> 
     let server_handle = spawn(async move {
         server_thread(rx_in, tx_out, stop_clone, config_clone)
             .await
-            .unwrap_or_else(|e| log::error!("Server thread error: {}", e));
+            .unwrap_or_else(|e| error!("Server thread error: {}", e));
     });
 
     // spawn 打印线程（输出到终端）

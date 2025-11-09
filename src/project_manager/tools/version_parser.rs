@@ -1,9 +1,9 @@
 use crate::project_manager::VERSION_API_URL;
 use anyhow::Error;
 use lazy_static::lazy_static;
-use log::error;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 /// 可选的服务端类型
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]

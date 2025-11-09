@@ -1,6 +1,6 @@
 use crate::project_manager::{CONFIG_FILE, Config, WORK_DIR};
-use log::error;
 use std::path::Path;
+use tracing::error;
 
 #[derive(PartialEq, Debug)]
 pub enum ConfigErr {

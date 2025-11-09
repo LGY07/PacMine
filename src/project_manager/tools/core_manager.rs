@@ -7,10 +7,10 @@ use crate::project_manager::{
     PURPUR_PROJECT_API,
 };
 use anyhow::Error;
-use log::{debug, error, info, warn};
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
+use tracing::{error, info, warn};
 
 /// 安装 Bedrock Edition 服务端
 pub fn install_bds() -> Result<(), Error> {

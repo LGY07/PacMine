@@ -3,12 +3,12 @@ use crate::project_manager::tools::download_files;
 use crate::project_manager::{CACHE_DIR, DEFAULT_DOWNLOAD_THREAD, RUNTIME_DIR};
 use anyhow::Error;
 use flate2::read::GzDecoder;
-use log::debug;
 use std::fs;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tar::Archive;
+use tracing::debug;
 use zip::ZipArchive;
 
 /// 自动管理 Java 的情况下，自动下载 Java

@@ -1,12 +1,12 @@
 use crate::project_manager::{CACHE_DIR, PASSWORD};
 use anyhow::Error;
-use log::debug;
 use rustic_backend::BackendOptions;
 use rustic_core::{
     BackupOptions, CheckOptions, ConfigOptions, KeyOptions, LocalDestination, LsOptions, PathList,
     Repository, RepositoryOptions, RestoreOptions, SnapshotOptions,
 };
 use std::path::PathBuf;
+use tracing::debug;
 
 /// 初始化备份仓库
 pub fn backup_init_repo(path: &str) -> Result<(), Error> {

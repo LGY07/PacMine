@@ -2,7 +2,6 @@ use crate::project_manager::MAX_RETRIES;
 use anyhow::Error;
 use futures::future::join_all;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use log::{debug, info};
 use reqwest::{Client, blocking};
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
@@ -14,6 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::task;
+use tracing::{debug, info};
 
 #[derive(Debug)]
 pub struct FileDownloadResult {

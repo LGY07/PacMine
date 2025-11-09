@@ -3,12 +3,12 @@ use crate::project_manager::tools::check_java;
 pub(crate) use crate::project_manager::tools::{ServerType, VersionType};
 use anyhow::Error;
 use colored::Colorize;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use std::cmp::PartialEq;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tracing::debug;
 
 /// 实例配置文件
 #[derive(Debug, Deserialize, Serialize)]

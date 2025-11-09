@@ -7,10 +7,9 @@ use crate::project_manager::{
 use clap::{Parser, Subcommand};
 use colored::Colorize;
 use home::home_dir;
-use log::{LevelFilter, error, info};
-use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
 use std::fs;
 use std::path::PathBuf;
+use tracing::{error, info};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -68,13 +67,11 @@ enum Commands {
 
 fn main() {
     // 启用日志输出
-    CombinedLogger::init(vec![TermLogger::new(
-        LevelFilter::Info,
-        Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )])
-    .unwrap();
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .compact()
+        .pretty()
+        .init();
 
     // 解析参数
     let cli = Cli::parse();
@@ -169,7 +166,7 @@ fn main() {
                 daemon::Config::from_file(config)
                     .expect("The configuration file could not be opened"),
             ) {
-                Ok(v) => info!("Server successfully exited"),
+                Ok(_) => info!("Server successfully exited"),
                 Err(e) => error!("The program exited with errors: {:?}", e),
             }
         } else {
@@ -182,7 +179,7 @@ fn main() {
                 ))
                 .expect("The configuration file could not be opened"),
             ) {
-                Ok(v) => info!("Server successfully exited:"),
+                Ok(_) => info!("Server successfully exited:"),
                 Err(e) => error!("The program exited with errors: {:?}", e),
             }
         }

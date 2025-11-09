@@ -25,8 +25,6 @@ zip = "6.0"
 lazy_static = "1.5"
 regex = "1.12"
 infer = "0.19"
-simplelog = "0.12"
-log = "0.4"
 clap = { version = "4.5", features = ["derive"] }
 flate2 = "1.1"
 tar = "0.4"
@@ -39,6 +37,8 @@ home = "0.5"
 nix = "0.30"
 uuid = { version = "1.18", features = ["v4"] }
 base64 = "0.22"
+tracing = { version = "0.1", features = ["release_max_level_info"] }
+tracing-subscriber = "0.3"
 
 [profile.release]
 strip = true

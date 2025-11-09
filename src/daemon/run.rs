@@ -16,12 +16,12 @@ use axum::{
     response::Response,
 };
 use chrono::Utc;
-use log::{debug, info, warn};
 use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
+use tracing::{debug, info, warn};
 
 /// 运行 Daemon
 pub fn server(config: config::Config) -> Result<(), Error> {

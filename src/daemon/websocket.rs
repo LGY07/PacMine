@@ -6,11 +6,11 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::{Extension, Json};
 use futures::{SinkExt, StreamExt};
-use log::{debug, info};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// WebSocket 管理器
