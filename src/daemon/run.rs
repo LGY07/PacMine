@@ -18,6 +18,7 @@ use chrono::Utc;
 use log::{debug, info};
 use serde_json::json;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::runtime::Runtime;
 
@@ -60,6 +61,11 @@ pub fn server(config: config::Config) -> Result<(), Error> {
 
     let rt = Runtime::new()?;
     rt.block_on(async {
+        // 每 1s 清理 WebSocket Token, TTL 为 10s
+        ws_manager
+            .clone()
+            .start_cleanup_task(Duration::from_secs(10), Duration::from_secs(1));
+
         // 公开路由
         let public = Router::new()
             .route("/control/status", get(status))
