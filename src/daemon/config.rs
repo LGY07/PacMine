@@ -6,8 +6,10 @@ use std::net::SocketAddr as TcpAddr;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
+const CONFIG_TEMPLATE:&str=include_str!("../../assets/config_example.toml");
+
 /// Daemon 配置文件
-#[derive(Deserialize, Serialize, Clone)]
+#[derive(Deserialize,Serialize, Clone)]
 pub struct Config {
     pub(crate) api: Api,
     pub(crate) storage: Storage,
@@ -88,6 +90,7 @@ pub struct Storage {
     pub(crate) save_space: SaveSpace,
 }
 #[derive(Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug)]
 pub enum SaveSpace {
     Disable,
     BindRuntime,
@@ -117,6 +120,24 @@ pub struct Token {
 }
 
 impl Config {
+    /// 转为带有注释的配置文件
+    pub fn to_template(&self)->String {
+        let listen = match &self.api.listen{
+            ApiAddr::UnixSocket(v) => v.display().to_string(),
+            ApiAddr::Tcp(v) => v.to_string(),
+        };
+
+        CONFIG_TEMPLATE.to_owned()
+            .replace("{API_LISTEN}", listen.as_str())
+            .replace("{STORAGE_WORK_DIR}", &self.storage.work_dir.display().to_string())
+            .replace("{STORAGE_SAVE_SPACE}",format!("{:?}",&self.storage.save_space).as_str())
+            .replace("{SECURITY_USER}",&self.security.user.to_string())
+            .replace("{SECURITY_PERMISSIVE}",&self.security.permissive.unwrap_or(false).to_string())
+            .replace("{SECURITY_UPLOAD_LIMIT}",&self.security.upload_limit.unwrap_or(2).to_string())
+            .replace("{SECURITY_WS_TTL}",&self.security.websocket_ttl.unwrap_or(10).to_string())
+            .replace("{TOKEN_VALUE}",&self.token.first().unwrap_or(&Token { value: Uuid::new_v4().to_string(), expiration: None }).value.to_string())
+    }
+
     /// 从文件读取 TOML
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         let content = fs::read_to_string(path)?;

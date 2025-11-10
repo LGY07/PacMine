@@ -56,6 +56,9 @@ enum Commands {
         /// Specify the location of the configuration file
         #[arg(short, long)]
         config: Option<PathBuf>,
+        /// Print a default configuration file
+        #[arg(short, long)]
+        generate:bool,
         /// Automatically configure as a systemd service
         #[arg(long)]
         install_systemd: bool,
@@ -149,10 +152,15 @@ fn main() {
     // daemon 子命令
     if let Commands::Daemon {
         config,
+        generate,
         install_systemd,
         install_openrc,
     } = &cli.command
     {
+        if *generate {
+            println!("{}",daemon::Config::default().to_template());
+            return;
+        }
         if *install_systemd {
             todo!();
             return;
