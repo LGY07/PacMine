@@ -13,6 +13,7 @@ use futures::future::join_all;
 use home::home_dir;
 use reqwest::blocking;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -25,6 +26,109 @@ use tokio::sync::{Mutex, Notify, mpsc};
 use tokio::task::JoinHandle;
 use tokio::{signal, spawn};
 use tracing::{debug, error, info, warn};
+
+pub fn generate_scripts() {
+    let config = get_info().expect("Failed to get project info");
+
+    // Shell Script
+    #[cfg(target_family = "unix")]
+    {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open("start.sh")
+            .expect("Failed to open start.sh file");
+
+        writeln!(file, "#!/bin/sh").unwrap();
+        writeln!(file).unwrap();
+
+        if let ServerType::BDS = config.project.server_type {
+            // Bedrock Edition
+            writeln!(file, "export LD_LIBRARY_PATH=.").unwrap();
+            writeln!(file).unwrap();
+            writeln!(file, "chmod +x {}", config.project.execute.display()).unwrap();
+            writeln!(file).unwrap();
+            writeln!(file, "{}", config.project.execute.display()).unwrap();
+        } else {
+            // Java Edition
+            if let Ok(mut java_path) = config.runtime.java.to_binary() {
+                java_path.pop();
+                writeln!(file, "export PATH=\"{}:$PATH\"", java_path.display()).unwrap();
+                writeln!(file).unwrap();
+            }
+
+            let extra_arg = config.runtime.java.arguments.join(" ");
+
+            let mut mem_options = Vec::new();
+            if config.runtime.java.xms != 0 {
+                mem_options.push(format!("-Xms{}M", config.runtime.java.xms));
+            }
+            if config.runtime.java.xmx != 0 {
+                mem_options.push(format!("-Xmx{}M", config.runtime.java.xmx));
+            }
+            let mem_arg = mem_options.join(" ");
+
+            writeln!(
+                file,
+                "java {} {} -jar {} -nogui",
+                extra_arg,
+                mem_arg,
+                config.project.execute.display()
+            )
+            .unwrap();
+        }
+        file.flush().unwrap();
+        drop(file);
+    }
+
+    // Batch Script
+    #[cfg(target_family = "windows")]
+    {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open("start.bat")
+            .expect("Failed to open start.bat file");
+
+        writeln!(file, "@echo off").unwrap();
+        writeln!(file).unwrap();
+
+        if let ServerType::BDS = config.project.server_type {
+            // Bedrock Edition
+            writeln!(file, "{}", config.project.execute.display()).unwrap();
+        } else {
+            if let Ok(mut java_path) = config.runtime.java.to_binary() {
+                java_path.pop();
+                writeln!(file, "set PATH={};%PATH%", java_path.display()).unwrap();
+                writeln!(file).unwrap();
+            }
+
+            let extra_arg = config.runtime.java.arguments.join(" ");
+
+            let mut mem_options = Vec::new();
+            if config.runtime.java.xms != 0 {
+                mem_options.push(format!("-Xms{}M", config.runtime.java.xms));
+            }
+            if config.runtime.java.xmx != 0 {
+                mem_options.push(format!("-Xmx{}M", config.runtime.java.xmx));
+            }
+            let mem_arg = mem_options.join(" ");
+
+            writeln!(
+                file,
+                "java.exe {} {} -jar {} -nogui",
+                mem_arg,
+                extra_arg,
+                config.project.execute.display()
+            )
+            .unwrap();
+        }
+        file.flush().unwrap();
+        drop(file);
+    }
+}
 
 pub fn detach_server() {
     #[derive(Deserialize)]

@@ -1,7 +1,7 @@
 mod daemon;
 mod project_manager;
 
-use crate::project_manager::run::detach_server;
+use crate::project_manager::run::{detach_server, generate_scripts};
 use crate::project_manager::{
     CACHE_DIR, create_project, get_info, pre_run, print_info, start_server,
 };
@@ -91,7 +91,8 @@ fn main() {
     {
         // 生成启动脚本
         if *generate {
-            todo!();
+            generate_scripts();
+            return;
         }
         // 推送到守护进程
         if *detach {

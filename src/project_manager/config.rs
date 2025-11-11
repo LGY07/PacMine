@@ -355,17 +355,17 @@ impl Java {
         }
 
         // 非自定义的 JDK
-        let runtime_path = format!(
+        let java_home_path = PathBuf::from(format!(
             "{}/java-{}-{}-{}-{}",
             RUNTIME_DIR,
             &self.version,
             &self.edition,
             std::env::consts::OS,
             std::env::consts::ARCH
-        );
-        debug!("{:?}", runtime_path);
-        if check_java(runtime_path.as_ref()) {
-            Ok(PathBuf::from(format!("{}/bin/java", runtime_path)))
+        ));
+        debug!("{:?}", java_home_path);
+        if check_java(java_home_path.join("bin").join("java").as_ref()) {
+            Ok(java_home_path.join("bin").join("java"))
         } else {
             Err(Error::msg("Java cannot be found"))
         }
