@@ -6,10 +6,11 @@ use std::net::SocketAddr as TcpAddr;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-const CONFIG_TEMPLATE:&str=include_str!("../../assets/config_example.toml");
+const CONFIG_TEMPLATE: &str = include_str!("../../assets/config_example.toml");
+const SYSTEMD_TEMPLATE: &str = include_str!("../../assets/systemd_example.service");
 
 /// Daemon 配置文件
-#[derive(Deserialize,Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Config {
     pub(crate) api: Api,
     pub(crate) storage: Storage,
@@ -89,8 +90,7 @@ pub struct Storage {
     /// 节约空间选项
     pub(crate) save_space: SaveSpace,
 }
-#[derive(Deserialize, Serialize, PartialEq, Clone)]
-#[derive(Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Clone, Debug)]
 pub enum SaveSpace {
     Disable,
     BindRuntime,
@@ -121,21 +121,48 @@ pub struct Token {
 
 impl Config {
     /// 转为带有注释的配置文件
-    pub fn to_template(&self)->String {
-        let listen = match &self.api.listen{
+    pub fn to_pretty(&self) -> String {
+        let listen = match &self.api.listen {
             ApiAddr::UnixSocket(v) => v.display().to_string(),
             ApiAddr::Tcp(v) => v.to_string(),
         };
 
-        CONFIG_TEMPLATE.to_owned()
+        CONFIG_TEMPLATE
+            .to_owned()
             .replace("{API_LISTEN}", listen.as_str())
-            .replace("{STORAGE_WORK_DIR}", &self.storage.work_dir.display().to_string())
-            .replace("{STORAGE_SAVE_SPACE}",format!("{:?}",&self.storage.save_space).as_str())
-            .replace("{SECURITY_USER}",&self.security.user.to_string())
-            .replace("{SECURITY_PERMISSIVE}",&self.security.permissive.unwrap_or(false).to_string())
-            .replace("{SECURITY_UPLOAD_LIMIT}",&self.security.upload_limit.unwrap_or(2).to_string())
-            .replace("{SECURITY_WS_TTL}",&self.security.websocket_ttl.unwrap_or(10).to_string())
-            .replace("{TOKEN_VALUE}",&self.token.first().unwrap_or(&Token { value: Uuid::new_v4().to_string(), expiration: None }).value.to_string())
+            .replace(
+                "{STORAGE_WORK_DIR}",
+                &self.storage.work_dir.display().to_string(),
+            )
+            .replace(
+                "{STORAGE_SAVE_SPACE}",
+                format!("{:?}", &self.storage.save_space).as_str(),
+            )
+            .replace("{SECURITY_USER}", &self.security.user.to_string())
+            .replace(
+                "{SECURITY_PERMISSIVE}",
+                &self.security.permissive.unwrap_or(false).to_string(),
+            )
+            .replace(
+                "{SECURITY_UPLOAD_LIMIT}",
+                &self.security.upload_limit.unwrap_or(2).to_string(),
+            )
+            .replace(
+                "{SECURITY_WS_TTL}",
+                &self.security.websocket_ttl.unwrap_or(10).to_string(),
+            )
+            .replace(
+                "{TOKEN_VALUE}",
+                &self
+                    .token
+                    .first()
+                    .unwrap_or(&Token {
+                        value: Uuid::new_v4().to_string(),
+                        expiration: None,
+                    })
+                    .value
+                    .to_string(),
+            )
     }
 
     /// 从文件读取 TOML
@@ -276,6 +303,20 @@ impl Known {
         fs::write(path, content)?;
         Ok(())
     }
+}
+
+/// 生成systemd配置文件
+pub fn get_systemd_service() -> String {
+    let home = home_dir().expect("Could not get the home directory.");
+    SYSTEMD_TEMPLATE.to_owned().replace(
+        "{PACMINE_BIN_PATH}",
+        home.join(".pacmine")
+            .join("bin")
+            .join("pacmine")
+            .display()
+            .to_string()
+            .as_str(),
+    )
 }
 
 #[cfg(test)]

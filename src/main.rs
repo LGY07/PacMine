@@ -58,7 +58,7 @@ enum Commands {
         config: Option<PathBuf>,
         /// Print a default configuration file
         #[arg(short, long)]
-        generate:bool,
+        generate: bool,
         /// Automatically configure as a systemd service
         #[arg(long)]
         install_systemd: bool,
@@ -158,11 +158,73 @@ fn main() {
     } = &cli.command
     {
         if *generate {
-            println!("{}",daemon::Config::default().to_template());
+            println!("{}", daemon::Config::default().to_pretty());
             return;
         }
         if *install_systemd {
-            todo!();
+            // systemd 仅在 Linux 可用
+            #[cfg(not(target_os = "linux"))]
+            {
+                error!("Systemd is only available on Linux");
+                return;
+            }
+            let config = daemon::Config::default();
+            let work_dir = &config.storage.work_dir;
+            let service = daemon::config::get_systemd_service();
+            let service_dir = home_dir()
+                .expect("Could not get home directory.")
+                .join(".config")
+                .join("systemd")
+                .join("user");
+
+            // 安装 PacMine
+            if !work_dir.join("bin").is_dir() {
+                fs::create_dir_all(&work_dir.join("bin"))
+                    .expect("Could not create the work directory!");
+            }
+            fs::copy(
+                std::env::current_exe().unwrap(),
+                work_dir.join("bin").join("pacmine"),
+            )
+            .expect("Could not copy the binary to the work directory!");
+            fs::write(work_dir.join("config.toml"), config.to_pretty())
+                .expect("Could not write the config!");
+
+            // 创建 systemd service unit
+            if !service_dir.is_dir() {
+                fs::create_dir_all(&service_dir).expect("Could not create the systemd directory!");
+            }
+            fs::write(service_dir.join("PacMine.service"), service)
+                .expect("Could not write the systemd config!");
+
+            // 启用 systemd 服务
+            let output = std::process::Command::new("systemctl")
+                .arg("--user")
+                .arg("daemon-reload")
+                .output()
+                .expect("Failed to execute systemctl");
+            if !output.status.success() {
+                eprintln!("{:?}", String::from_utf8_lossy(&output.stderr));
+                error!("Failed to reload the systemd service");
+            }
+            let output2 = std::process::Command::new("systemctl")
+                .arg("--user")
+                .arg("enable")
+                .arg("--now")
+                .arg("PacMine.service")
+                .output()
+                .expect("Failed to execute systemctl");
+            if output2.status.success() {
+                info!("The systemd service was successfully enabled");
+                println!(
+                    "The service starts only when the user logs in. If you need to start along with the system, please run \"{}\"",
+                    "sudo loginctl enable-linger `whoami`".yellow()
+                );
+            } else {
+                eprintln!("{:?}", String::from_utf8_lossy(&output2.stderr));
+                error!("Failed to enable the systemd service");
+            }
+
             return;
         }
         if *install_openrc {
