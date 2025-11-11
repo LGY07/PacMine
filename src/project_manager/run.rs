@@ -74,7 +74,7 @@ pub fn detach_server() {
 
             #[cfg(target_family = "unix")]
             blocking::Client::builder()
-                .unix_socket(v.to_str())
+                .unix_socket(v)
                 .build()
                 .expect("Failed to build client")
         }
