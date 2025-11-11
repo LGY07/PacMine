@@ -1,3 +1,4 @@
+use crate::daemon::config::ApiAddr;
 use crate::project_manager::config::{JavaMode, JavaType};
 use crate::project_manager::tools::backup::{backup_check_repo, backup_init_repo, backup_new_snap};
 use crate::project_manager::tools::{
@@ -25,7 +26,6 @@ use tokio::task::JoinHandle;
 use tokio::{signal, spawn};
 use tracing::{debug, error, info, warn};
 
-#[cfg(target_family = "unix")]
 pub fn detach_server() {
     #[derive(Deserialize)]
     struct Project {
@@ -52,18 +52,6 @@ pub fn detach_server() {
     // Work dir 地址
     let work_dir = home_dir().unwrap().join(".pacmine");
 
-    // 创建 reqwest 客户端
-    let client = blocking::Client::builder()
-        .unix_socket(work_dir.join("api.sock"))
-        .build()
-        .expect("Failed to build client");
-
-    // 检查运行状态
-    client
-        .get("http://localhost/control/status")
-        .send()
-        .expect("Push to the server failed, make sure the server is running");
-
     // 偷取 Token 😁
     let daemon_config = crate::daemon::Config::from_file(work_dir.join("config.toml"))
         .expect("Failed to load daemon config");
@@ -74,9 +62,39 @@ pub fn detach_server() {
         .expect("Failed to find token in daemon config")
         .value;
 
+    // 创建 reqwest 客户端
+    let mut tcp_addr = "localhost".to_string();
+    let client = match daemon_config.api.listen {
+        ApiAddr::UnixSocket(v) => {
+            #[cfg(not(target_family = "unix"))]
+            {
+                error!("Platform error: Unix Socket is not supported");
+                return;
+            }
+
+            #[cfg(target_family = "unix")]
+            blocking::Client::builder()
+                .unix_socket(v.to_str())
+                .build()
+                .expect("Failed to build client")
+        }
+        ApiAddr::Tcp(v) => {
+            tcp_addr = v.to_string();
+            blocking::Client::builder()
+                .build()
+                .expect("Failed to build client")
+        }
+    };
+
+    // 检查运行状态
+    client
+        .get(format!("http://{}/control/status", &tcp_addr))
+        .send()
+        .expect("Push to the server failed, make sure the server is running");
+
     // 获取项目列表
     let res = client
-        .get("http://localhost/control/list")
+        .get(format!("http://{}/control/list", &tcp_addr))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .expect("Push to the server failed, an unknown error occurred.");
@@ -92,7 +110,7 @@ pub fn detach_server() {
     } else {
         // 添加项目
         client
-            .post("http://localhost/control/add")
+            .post(format!("http://{}/control/add", &tcp_addr))
             .header("Authorization", format!("Bearer {}", token))
             .json(&AddRequest {
                 path: env::current_dir().expect("Failed to get current dir"),
@@ -101,7 +119,7 @@ pub fn detach_server() {
             .expect("Push to the server failed, an unknown error occurred");
         // 测试添加
         let res = client
-            .get("http://localhost/control/list")
+            .get(format!("http://{}/control/list", &tcp_addr))
             .header("Authorization", format!("Bearer {}", token))
             .send()
             .expect("Push to the server failed, an unknown error occurred");
@@ -115,7 +133,7 @@ pub fn detach_server() {
 
     // 运行项目
     let res = client
-        .get(format!("http://localhost/project/{}/start", project_id))
+        .get(format!("http://{}/project/{}/start", &tcp_addr, project_id))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .expect("Push to the server failed, an unknown error occurred");

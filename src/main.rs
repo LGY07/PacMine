@@ -93,24 +93,14 @@ fn main() {
         if *generate {
             todo!();
         }
-        // 推送到守护进程，仅支持 Unix 平台
+        // 推送到守护进程
         if *detach {
-            #[cfg(target_family = "unix")]
-            {
-                detach_server();
-                return;
-            }
-            error!("This feature is not supported on this platform");
+            detach_server();
             return;
         }
-        // 连接到守护进程，仅支持 Unix 平台
+        // 连接到守护进程
         if *attach {
-            #[cfg(target_family = "unix")]
-            {
-                todo!();
-                return;
-            }
-            error!("This feature is not supported on this platform");
+            todo!();
             return;
         }
         // 正常启动游戏
