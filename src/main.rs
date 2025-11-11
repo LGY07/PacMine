@@ -1,7 +1,7 @@
 mod daemon;
 mod project_manager;
 
-use crate::project_manager::run::{detach_server, generate_scripts};
+use crate::project_manager::run::generate_scripts;
 use crate::project_manager::{
     CACHE_DIR, create_project, get_info, pre_run, print_info, start_server,
 };
@@ -96,12 +96,12 @@ fn main() {
         }
         // 推送到守护进程
         if *detach {
-            detach_server();
+            project_manager::tools::client::detach_server();
             return;
         }
         // 连接到守护进程
         if *attach {
-            todo!();
+            project_manager::tools::client::websocket_client();
             return;
         }
         // 正常启动游戏

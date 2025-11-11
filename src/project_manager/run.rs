@@ -1,4 +1,3 @@
-use crate::daemon::config::ApiAddr;
 use crate::project_manager::config::{JavaMode, JavaType};
 use crate::project_manager::tools::backup::{backup_check_repo, backup_init_repo, backup_new_snap};
 use crate::project_manager::tools::{
@@ -10,11 +9,8 @@ use anyhow::Error;
 use chrono::{Local, Utc};
 use cron_tab::AsyncCron;
 use futures::future::join_all;
-use home::home_dir;
-use reqwest::blocking;
-use serde::{Deserialize, Serialize};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::{env, fs};
@@ -24,9 +20,10 @@ use tokio::process::Command;
 use tokio::runtime::Runtime;
 use tokio::sync::{Mutex, Notify, mpsc};
 use tokio::task::JoinHandle;
-use tokio::{signal, spawn};
+use tokio::{select, signal, spawn};
 use tracing::{debug, error, info, warn};
 
+/// 生成启动脚本
 pub fn generate_scripts() {
     let config = get_info().expect("Failed to get project info");
 
@@ -130,126 +127,6 @@ pub fn generate_scripts() {
     }
 }
 
-pub fn detach_server() {
-    #[derive(Deserialize)]
-    struct Project {
-        id: usize,
-        running: bool,
-        name: String,
-        server_type: String,
-        version: String,
-        path: PathBuf,
-    }
-    #[derive(Deserialize)]
-    struct ListResponse {
-        success: bool,
-        projects: Vec<Project>,
-    }
-    #[derive(Serialize)]
-    struct AddRequest {
-        path: PathBuf,
-    }
-
-    // 检查当前项目
-    get_info().expect("Failed to get project info");
-
-    // Work dir 地址
-    let work_dir = home_dir().unwrap().join(".pacmine");
-
-    // 偷取 Token 😁
-    let daemon_config = crate::daemon::Config::from_file(work_dir.join("config.toml"))
-        .expect("Failed to load daemon config");
-    let token = &daemon_config
-        .token
-        .iter()
-        .find(|x| x.expiration.is_none_or(|exp| exp > Utc::now()))
-        .expect("Failed to find token in daemon config")
-        .value;
-
-    // 创建 reqwest 客户端
-    let mut tcp_addr = "localhost".to_string();
-    let client = match daemon_config.api.listen {
-        ApiAddr::UnixSocket(v) => {
-            #[cfg(not(target_family = "unix"))]
-            {
-                error!("Platform error: Unix Socket is not supported");
-                return;
-            }
-
-            #[cfg(target_family = "unix")]
-            blocking::Client::builder()
-                .unix_socket(v)
-                .build()
-                .expect("Failed to build client")
-        }
-        ApiAddr::Tcp(v) => {
-            tcp_addr = v.to_string();
-            blocking::Client::builder()
-                .build()
-                .expect("Failed to build client")
-        }
-    };
-
-    // 检查运行状态
-    client
-        .get(format!("http://{}/control/status", &tcp_addr))
-        .send()
-        .expect("Push to the server failed, make sure the server is running");
-
-    // 获取项目列表
-    let res = client
-        .get(format!("http://{}/control/list", &tcp_addr))
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .expect("Push to the server failed, an unknown error occurred.");
-    let list: ListResponse = res.json().expect("Failed to parse json");
-
-    // 获取项目 ID
-    let project_id = if let Some(project) = list
-        .projects
-        .iter()
-        .find(|x| x.path == env::current_dir().expect("Failed to get current dir"))
-    {
-        project.id
-    } else {
-        // 添加项目
-        client
-            .post(format!("http://{}/control/add", &tcp_addr))
-            .header("Authorization", format!("Bearer {}", token))
-            .json(&AddRequest {
-                path: env::current_dir().expect("Failed to get current dir"),
-            })
-            .send()
-            .expect("Push to the server failed, an unknown error occurred");
-        // 测试添加
-        let res = client
-            .get(format!("http://{}/control/list", &tcp_addr))
-            .header("Authorization", format!("Bearer {}", token))
-            .send()
-            .expect("Push to the server failed, an unknown error occurred");
-        let list: ListResponse = res.json().expect("Failed to parse json");
-        list.projects
-            .iter()
-            .find(|x| x.path == env::current_dir().expect("Failed to get current dir"))
-            .expect("Failed to add project to daemon")
-            .id
-    };
-
-    // 运行项目
-    let res = client
-        .get(format!("http://{}/project/{}/start", &tcp_addr, project_id))
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .expect("Push to the server failed, an unknown error occurred");
-    debug!("{:?}", res);
-
-    if res.status().is_success() {
-        info!("Push to the server successfully");
-    } else {
-        error!("Failed to push to the server: {:?}", res.text());
-    }
-}
-
 /// 启动服务器
 pub fn start_server(config: Config) -> Result<(), Error> {
     match pre_run(&config) {
@@ -280,7 +157,7 @@ pub fn start_server(config: Config) -> Result<(), Error> {
         )));
 
         // 停止信号
-        tokio::select! {
+        select! {
             _ = stop_flag.notified() => {},
             _ = signal::ctrl_c()=> {
                 info!("Ctrl+C received, setting stop flag...");
@@ -329,7 +206,7 @@ async fn server_thread_with_terminal(config: Arc<Config>, stop: Arc<Notify>) -> 
     let print_handle = spawn(async move {
         let mut out = stdout();
         while let Some(line) = rx_out.recv().await {
-            tokio::select! {
+            select! {
                 _ = stop_clone.notified() => break,
                 _ = async {
                     let _ = out.write_all(line.as_bytes()).await;
@@ -346,7 +223,7 @@ async fn server_thread_with_terminal(config: Arc<Config>, stop: Arc<Notify>) -> 
         let mut buf = [0u8; 1024];
         let mut stdin = stdin();
         loop {
-            tokio::select! {
+            select! {
                 _ = stop_clone.notified() => break,
                 result = stdin.read(&mut buf) => {
                     match result {
@@ -444,7 +321,7 @@ pub async fn server_thread(
         let mut reader = BufReader::new(stdout);
         let mut line = String::new();
         while reader.read_line(&mut line).await? > 0 {
-            tokio::select! {
+            select! {
                 _ = stop_clone.notified() => break,
                 _ = async {
                     let _ = tx_stdout.send(line.clone()).await;
@@ -465,7 +342,7 @@ pub async fn server_thread(
         let mut reader = BufReader::new(stderr);
         let mut line = String::new();
         while reader.read_line(&mut line).await? > 0 {
-            tokio::select! {
+            select! {
                 _ = stop_clone.notified() => break,
                 _ = async {
                     let _ = tx_stderr.send(line.clone()).await;
@@ -483,7 +360,7 @@ pub async fn server_thread(
     let stop_clone = stop.clone();
     let stdin_handle = spawn(async move {
         while let Some(msg) = rx.recv().await {
-            tokio::select! {
+            select! {
                 _ = stop_clone.notified() => break,
                 _ = async {
                     let mut stdin = child_stdin_clone.lock().await;
@@ -496,7 +373,7 @@ pub async fn server_thread(
     });
 
     // 等待子进程结束或停止信号
-    tokio::select! {
+    select! {
         _ = stop.notified() => {
             let mut stdin = child_stdin.lock().await;
             let _ = stdin.write_all(b"stop\n").await;
@@ -593,7 +470,7 @@ pub async fn backup_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(),
             let config = Arc::clone(&config);
             backup_handles.push(spawn(async move {
                 loop {
-                    tokio::select! {
+                    select! {
                         _ = stop.notified() => {
                             // 等待 Stop
                             info!("Stop signal received. Exiting interval backup loop.");
@@ -603,7 +480,7 @@ pub async fn backup_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(),
                             if let Err(e) = result {
                                 error!("Backup failed: {:?}", e);
                             }
-                            tokio::select! {
+                            select! {
                                 _ = stop.notified() => {
                                     // 等待 Stop
                                     info!("Stop signal received. Exiting interval backup loop.");

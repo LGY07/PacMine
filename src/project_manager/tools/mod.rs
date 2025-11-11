@@ -1,5 +1,6 @@
 // 暂时为 pub(crate)
 pub(crate) mod backup;
+pub(crate) mod client;
 mod core_manager;
 mod downloader;
 mod file_parser;
