@@ -8,16 +8,16 @@ use axum::{Extension, Json};
 use futures::{SinkExt, StreamExt};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
-use tokio::time::{Instant, sleep};
+use tokio::time::sleep;
 use tracing::{debug, info};
 use uuid::Uuid;
 
 /// WebSocket 管理器
 pub struct WebSocketManager {
     pub task_manager: Arc<TaskManager<String, String>>,
-    // UUID -> (task_id, Option<断开时间>)
+    // UUID -> (task_id, Option<空闲开始时间>), None 表示当前有连接
     pub uuid_map: Arc<Mutex<HashMap<Uuid, (usize, Option<Instant>)>>>,
 }
 
@@ -31,7 +31,10 @@ impl WebSocketManager {
 
     pub async fn register_task(&self, task_id: usize) -> Uuid {
         let uuid = Uuid::new_v4();
-        self.uuid_map.lock().await.insert(uuid, (task_id, None));
+        self.uuid_map
+            .lock()
+            .await
+            .insert(uuid, (task_id, Some(Instant::now())));
         uuid
     }
 
@@ -39,24 +42,33 @@ impl WebSocketManager {
         self.uuid_map.lock().await.get(uuid).map(|(id, _)| *id)
     }
 
-    /// 在客户端断开时调用，标记断开时间
-    pub async fn mark_disconnected(&self, uuid: &Uuid) {
+    /// 客户端连接时调用，重置空闲时间
+    async fn mark_connected(&self, uuid: &Uuid) {
         let mut map = self.uuid_map.lock().await;
-        if let Some((_id, disconnect_time)) = map.get_mut(uuid) {
-            *disconnect_time = Some(Instant::now());
+        if let Some((_id, idle_since)) = map.get_mut(uuid) {
+            *idle_since = None;
         }
     }
 
+    /// 客户端断开时调用，开始 TTL 计时
+    async fn mark_disconnected(&self, uuid: &Uuid) {
+        let mut map = self.uuid_map.lock().await;
+        if let Some((_id, idle_since)) = map.get_mut(uuid) {
+            *idle_since = Some(Instant::now());
+        }
+    }
+
+    /// 定时清理空闲超过 TTL 的 UUID
     pub async fn start_cleanup_task(self: Arc<Self>, ttl: Duration, interval: Duration) {
         tokio::spawn(async move {
             loop {
                 sleep(interval).await;
                 let now = Instant::now();
                 let mut map = self.uuid_map.lock().await;
-                map.retain(|uuid, (_id, disconnect_time)| {
-                    if let Some(disconnect) = disconnect_time {
-                        if now.duration_since(*disconnect) >= ttl {
-                            info!("UUID {} expired after disconnect", uuid);
+                map.retain(|uuid, (_id, idle_since)| {
+                    if let Some(start) = idle_since {
+                        if now.duration_since(*start) >= ttl {
+                            info!("UUID {} expired due to idle TTL", uuid);
                             return false;
                         }
                     }
@@ -67,14 +79,18 @@ impl WebSocketManager {
     }
 }
 
+/// WebSocket 处理
 async fn ws_handler(
     socket: WebSocketUpgrade,
     uuid: Uuid,
     task_id: usize,
+    task_manager: Arc<TaskManager<String, String>>,
     ws_manager: Arc<WebSocketManager>,
 ) -> impl IntoResponse {
-    let task_manager = ws_manager.task_manager.clone();
-    socket.on_upgrade(move |ws: WebSocket| async move {
+    socket.on_upgrade(move |mut ws: WebSocket| async move {
+        // 标记已连接
+        ws_manager.mark_connected(&uuid).await;
+
         let (mut ws_tx, mut ws_rx) = ws.split();
 
         let to_task_tx = match task_manager.get_sender(task_id) {
@@ -91,8 +107,11 @@ async fn ws_handler(
         let send_task = tokio::spawn(async move {
             let mut rx = from_task_rx.lock().await;
             while let Some(msg) = rx.recv().await {
-                let utf8_msg = Utf8Bytes::from(msg);
-                if ws_tx.send(Message::Text(utf8_msg)).await.is_err() {
+                if ws_tx
+                    .send(Message::Text(Utf8Bytes::from(msg)))
+                    .await
+                    .is_err()
+                {
                     debug!("Client disconnected while sending from task {}", task_id);
                     break;
                 }
@@ -103,8 +122,7 @@ async fn ws_handler(
         let recv_task = tokio::spawn(async move {
             while let Some(Ok(msg)) = ws_rx.next().await {
                 if let Message::Text(txt) = msg {
-                    let txt: String = txt.to_string();
-                    if to_task_tx.send(txt).await.is_err() {
+                    if to_task_tx.send(txt.parse().unwrap()).await.is_err() {
                         debug!("Task {} dropped while receiving from client", task_id);
                         break;
                     }
@@ -117,9 +135,9 @@ async fn ws_handler(
             _ = recv_task => {},
         }
 
-        ws_manager.mark_disconnected(&uuid).await;
-
         debug!("WebSocket for task {} disconnected", task_id);
+        // 客户端断开，开始 TTL 计时
+        ws_manager.mark_disconnected(&uuid).await;
     })
 }
 
@@ -129,7 +147,6 @@ pub(crate) async fn terminal(
     ws: WebSocketUpgrade,
     Extension(ws_manager): Extension<Arc<WebSocketManager>>,
 ) -> Result<Response, Response> {
-    // 读取请求地址
     let uuid = match Uuid::parse_str(&terminal) {
         Ok(u) => u,
         Err(e) => {
@@ -143,7 +160,7 @@ pub(crate) async fn terminal(
                 .into_response());
         }
     };
-    // 尝试读取连接
+
     let task_id = match ws_manager.get_task_id(&uuid).await {
         Some(id) => id,
         None => {
@@ -157,8 +174,14 @@ pub(crate) async fn terminal(
                 .into_response());
         }
     };
-    // 开始传输数据
-    Ok(ws_handler(ws, uuid, task_id, ws_manager.clone())
-        .await
-        .into_response())
+
+    Ok(ws_handler(
+        ws,
+        uuid,
+        task_id,
+        ws_manager.task_manager.clone(),
+        ws_manager.clone(),
+    )
+    .await
+    .into_response())
 }

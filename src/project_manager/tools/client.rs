@@ -271,7 +271,7 @@ async fn handle_websocket_and_terminal(ws_stream: WebSocket) {
             maybe_msg = rx.recv() => {
                 match maybe_msg {
                     Some(msg) => {
-                        if let Err(e) = write.send(Message::Text(msg)).await {
+                        if let Err(e) = write.send(Message::Text(msg.trim().to_string())).await {
                             eprint!("Send message failed: {}", e);
                             let _ = stdout().flush().await;
                             break;
