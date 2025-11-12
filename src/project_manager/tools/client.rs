@@ -2,8 +2,7 @@ use crate::daemon::config::ApiAddr;
 use crate::project_manager::get_info;
 use anyhow::Error;
 use chrono::Utc;
-use futures::StreamExt;
-use futures_util::SinkExt;
+use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use home::home_dir;
 use reqwest_websocket::{Message, RequestBuilderExt, WebSocket};
 use serde::{Deserialize, Serialize};
@@ -206,9 +205,7 @@ pub fn websocket_client() {
 
             debug!("Build WebSocket client successfully");
 
-            let websocket = ws_client.into_websocket().await?;
-
-            handle_websocket_and_terminal(websocket).await;
+            handle_websocket_and_terminal(ws_client.into_websocket().await?).await;
 
             Ok(())
         }) {
