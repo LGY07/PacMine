@@ -1,4 +1,5 @@
 #![cfg(target_os = "linux")]
+use anyhow::Error;
 use nix::mount::{MntFlags, MsFlags, mount, umount2};
 use nix::sched::{CloneFlags, unshare};
 use nix::sys::resource::{Resource, setrlimit};
@@ -53,7 +54,7 @@ pub struct Sandbox<'a> {
 }
 
 impl<'a> Sandbox<'a> {
-    pub fn new(config: SandboxConfig<'a>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(config: SandboxConfig<'a>) -> Result<Self, Error> {
         let mut flags = CloneFlags::empty();
         if config.enable_mount_ns {
             flags |= CloneFlags::CLONE_NEWNS;
@@ -148,7 +149,7 @@ impl<'a> Sandbox<'a> {
         Ok(Self { config })
     }
 
-    pub fn release(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn release(&self) -> Result<(), Error> {
         let mut paths = vec![self.config.tmp_root.to_string()];
         if self.config.mount_proc {
             paths.push(format!("{}/proc", self.config.tmp_root));
@@ -165,7 +166,7 @@ impl<'a> Sandbox<'a> {
         Ok(())
     }
 
-    pub fn run<F, R>(config: SandboxConfig<'a>, f: F) -> Result<R, Box<dyn std::error::Error>>
+    pub fn run<F, R>(config: SandboxConfig<'a>, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R,
     {
