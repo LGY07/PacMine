@@ -1,6 +1,6 @@
 # PacMine
 
-[![GitHub](https://img.shields.io/github/license/LGY07/PacMine?style=for-the-badge)](https://opensource.org/license/mit/)
+![GitHub License](https://img.shields.io/github/license/LGY07/PacMine?style=flat-square)
 
 A distributed Minecraft server management tool written in Rust.
 
