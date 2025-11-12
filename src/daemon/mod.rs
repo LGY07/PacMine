@@ -2,7 +2,7 @@ pub(crate) mod config;
 mod control;
 mod project;
 mod run;
-mod sandbox;
+pub(crate) mod sandbox;
 mod security;
 mod task_manager;
 mod websocket;
