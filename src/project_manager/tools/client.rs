@@ -63,7 +63,7 @@ impl Connection {
                 #[cfg(not(target_family = "unix"))]
                 {
                     error!("Platform error: Unix Socket is not supported");
-                    return;
+                    return Err(Error::msg("Platform error: Unix Socket is not supported"));
                 }
 
                 #[cfg(target_family = "unix")]
