@@ -147,9 +147,7 @@ pub fn start_server(config: Config) -> Result<(), Error> {
         let mut handles: Vec<JoinHandle<Result<(), Error>>> = vec![];
 
         // 启动 backup 线程
-        if config.backup.enable {
-            handles.push(spawn(backup_thread(Arc::clone(&config), stop_flag.clone())));
-        }
+        handles.push(spawn(backup_thread(Arc::clone(&config), stop_flag.clone())));
 
         // 启动服务器线程
         handles.push(spawn(server_thread_with_terminal(
@@ -411,6 +409,10 @@ pub async fn server_thread(
 
 /// 备份线程
 pub async fn backup_thread(config: Arc<Config>, stop: Arc<Notify>) -> Result<(), Error> {
+    if !config.backup.enable {
+        return Ok(());
+    }
+
     let mut backup_handles = vec![];
     info!("Backup task enabled");
     // 初始化仓库
